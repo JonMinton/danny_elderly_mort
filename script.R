@@ -117,7 +117,7 @@ dta %>%
   mutate(tmp = lg2 + lg1 + lmr + ld1 + ld2) %>% 
   mutate(smr = tmp / 5) %>% 
   select(sex, place, year, age, deaths, population, cmr, lmr, smr) %>% 
-  ungroup %>% mutate(year = as.numeric(year)) -> smooth_dta_ons
+  ungroup %>% mutate(year = as.numeric(year)) %>% filter(place == "ew") -> smooth_dta_ons
 
 smooth_dta_ons <- smooth_dta_ons %>% mutate(source = "ons") %>% 
   select(source, sex, year, age, deaths, population, cmr, lmr, smr)
@@ -127,7 +127,9 @@ smooth_dta_hmd <- smooth_dta_hmd %>% mutate(source = "hmd") %>%
 
 smooth_dta_both <- bind_rows(smooth_dta_ons, smooth_dta_hmd)
 
-
+smooth_dta_both <- smooth_dta_both  %>% 
+  filter(!is.na(deaths), !is.na(population))  %>% 
+  distinct()
 
 smooth_dta_both %>% 
   mutate(source_sex = paste(source, sex, sep = "_")) %>% 
@@ -140,11 +142,6 @@ g1
 ggsave("figures/points_only.png", width = 30, height=30, dpi = 300, units = "cm")
 
 
-
-g1 + geom_vline(mapping = aes(xintercept = 2010))
-
-ggsave("figures/points_2010line.png", width = 30, height=30, dpi = 300, units = "cm")
-
 g1 + coord_cartesian(xlim = c(2000, 2014), ylim = c(-1.5, -0.7)) + stat_smooth(mapping = aes(group = factor(age)))
 
 ggsave("figures/points_zoomedin_smoother.png", width = 30, height = 30, dpi = 300, units = "cm")
@@ -156,17 +153,19 @@ ggsave("figures/points_smoother.png", width = 30, height = 30, dpi = 300, units 
 
 
 smooth_dta_both  %>% mutate(birth_year = year - age) %>% 
+  mutate(source_sex = paste(source, sex, sep = "_")) %>% 
   filter(age %in% seq(50, 90, by = 5)) %>% 
-  ggplot(., aes(x = birth_year, y = smr, group = factor(age), colour = factor(age))) + 
+  ggplot(., aes(x = birth_year, y = smr, group = source_sex, colour = factor(age), shape = source)) + 
   geom_point() + facet_wrap(~ sex) + 
   geom_vline(aes(xintercept = c(1925))) + geom_vline(aes(xintercept = c(1920)))
 
 ggsave("figures/points_by_birth_cohort.png", width = 30, height = 30, dpi = 300, units = "cm")
 
 
-smooth_dta  %>% mutate(birth_year = year - age) %>% 
+smooth_dta_both  %>% mutate(birth_year = year - age) %>% 
   filter(age %in% seq(50, 90, by = 5)) %>% 
-  ggplot(., aes(x = birth_year, y = smr, group = factor(age), colour = factor(age))) + 
+  mutate(source_sex = paste(source, sex, sep = "_")) %>% 
+  ggplot(., aes(x = birth_year, y = smr, group = source_sex, colour = factor(age), shape = source)) + 
   geom_point() + facet_wrap(~ sex) + 
   geom_vline(aes(xintercept = c(1925))) + geom_vline(aes(xintercept = c(1920))) + 
   coord_cartesian(xlim = c(1910, 1940), ylim = c(-1.5, -0.5))
@@ -174,12 +173,11 @@ smooth_dta  %>% mutate(birth_year = year - age) %>%
 ggsave("figures/points_by_birth_cohort_zoomedin.png", width = 30, height = 30, dpi = 300, units = "cm")
 
 
-smooth_dta  %>% mutate(birth_year = year - age) %>% 
-  filter(place == "ew") %>% 
+smooth_dta_both  %>% mutate(birth_year = year - age) %>% 
   filter(age %in% seq(50, 90, by = 5)) %>% 
-  ggplot(., aes(x = birth_year, y = cmr, group = factor(age), colour = factor(age))) + 
+  mutate(source_sex = paste(source, sex, sep = "_")) %>% 
+  ggplot(., aes(x = birth_year, y = smr, group = factor(source_sex), colour = factor(age), shape = source)) + 
   geom_point() + facet_wrap(~ sex) + 
-  geom_vline(aes(xintercept = c(1925))) + geom_vline(aes(xintercept = c(1920))) + 
-  coord_cartesian(xlim = c(1910, 1940), ylim = c(-1.5, -0.5))
+  geom_vline(aes(xintercept = c(1925))) + geom_vline(aes(xintercept = c(1920))) 
 
 ggsave("figures/points_by_birth_cohort_zoomedin.png", width = 30, height = 30, dpi = 300, units = "cm")
