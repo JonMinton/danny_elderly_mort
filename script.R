@@ -87,6 +87,24 @@ dta_deaths <- Reduce(bind_rows, list(ew_female_deaths, ew_male_deaths, uk_female
 dta <- inner_join(dta_deaths, dta_population)
 
 
+# augment with hmd --------------------------------------------------------
+
+hmd <- read_csv("hmd/counts.csv")
+
+hmd <- hmd %>% filter(country == "GBRTENW", sex != "total")
+
+hmd %>% 
+  mutate(cmr = death_count / population_count, lmr = log(cmr, 10)) %>% 
+  group_by(sex, year) %>% 
+  mutate(
+    lg2 = lag(lmr, 2),
+    lg1 = lag(lmr, 1), 
+    ld1 = lead(lmr, 1), 
+    ld2 = lead(lmr, 2)  ) %>% 
+  mutate(tmp = lg2 + lg1 + lmr + ld1 + ld2) %>% 
+  mutate(smr = tmp / 5) %>% 
+  select(sex, year, age, deaths = death_count, population=population_count, cmr, lmr, smr) %>% 
+  ungroup %>% mutate(year = as.numeric(year)) -> smooth_dta_hmd
 
 dta %>% 
   mutate(cmr = deaths / population, lmr = log(cmr, 10)) %>% 
@@ -101,11 +119,40 @@ dta %>%
   select(sex, place, year, age, deaths, population, cmr, lmr, smr) %>% 
   ungroup %>% mutate(year = as.numeric(year)) -> smooth_dta
 
-smooth_dta %>% 
-  filter(place == "ew") %>% 
+smooth_dta <- smooth_dta %>% select(-place)
+smooth_dta_ons <- smooth_dta %>% mutate(source = "ons") %>% 
+  select(sex, year, age, source, smr)
+smooth_dta_hmd <- smooth_dta_hmd %>% mutate(source = "hmd") %>% 
+  select(sex, year, age, source, smr)
+
+smooth_dta_hmd <- smooth_dta_hmd %>% rename(smr_hmd = smr) %>% select(-source)
+smooth_dta_ons <- smooth_dta_ons %>% rename(smr_ons = smr) %>% select(-source)
+
+smooth_dta_both <- full_join(smooth_dta_hmd, smooth_dta_ons, by = c("sex", "year", "age"))
+
+
+smooth_dta_both <- smooth_dta_both  %>% 
+   mutate(tmp1 = (smr_hmd + smr_ons) / 2)  %>% 
+   mutate(
+   smr = ifelse(
+   !is.na(tmp1), 
+   tmp1, 
+   ifelse(
+     !is.na(smr_hmd), 
+     smr_hmd, 
+     ifelse(
+       !is.na(smr_ons), 
+       smr_ons,
+       NA)))
+   ) %>% 
+ select(sex, year, age, smr)
+
+
+
+smooth_dta_both %>% 
   filter(age %in% seq(50, 90, by = 5)) %>% 
   ggplot(., aes(x = year, y = smr, group = factor(age), colour = factor(age))) + 
-  geom_point() + facet_wrap(~ sex) + scale_x_continuous(breaks = seq(1960, 2010, by = 10)) -> g1
+  geom_point() + facet_wrap(~ sex) -> g1
 
 g1 
 
@@ -127,8 +174,7 @@ ggsave("figures/points_smoother.png", width = 30, height = 30, dpi = 300, units 
 
 
 
-smooth_dta  %>% mutate(birth_year = year - age) %>% 
-  filter(place == "ew") %>% 
+smooth_dta_both  %>% mutate(birth_year = year - age) %>% 
   filter(age %in% seq(50, 90, by = 5)) %>% 
   ggplot(., aes(x = birth_year, y = smr, group = factor(age), colour = factor(age))) + 
   geom_point() + facet_wrap(~ sex) + 
@@ -138,7 +184,6 @@ ggsave("figures/points_by_birth_cohort.png", width = 30, height = 30, dpi = 300,
 
 
 smooth_dta  %>% mutate(birth_year = year - age) %>% 
-  filter(place == "ew") %>% 
   filter(age %in% seq(50, 90, by = 5)) %>% 
   ggplot(., aes(x = birth_year, y = smr, group = factor(age), colour = factor(age))) + 
   geom_point() + facet_wrap(~ sex) + 
