@@ -117,41 +117,22 @@ dta %>%
   mutate(tmp = lg2 + lg1 + lmr + ld1 + ld2) %>% 
   mutate(smr = tmp / 5) %>% 
   select(sex, place, year, age, deaths, population, cmr, lmr, smr) %>% 
-  ungroup %>% mutate(year = as.numeric(year)) -> smooth_dta
+  ungroup %>% mutate(year = as.numeric(year)) -> smooth_dta_ons
 
-smooth_dta <- smooth_dta %>% select(-place)
-smooth_dta_ons <- smooth_dta %>% mutate(source = "ons") %>% 
-  select(sex, year, age, source, smr)
+smooth_dta_ons <- smooth_dta_ons %>% mutate(source = "ons") %>% 
+  select(source, sex, year, age, deaths, population, cmr, lmr, smr)
+
 smooth_dta_hmd <- smooth_dta_hmd %>% mutate(source = "hmd") %>% 
-  select(sex, year, age, source, smr)
+  select(source, sex, year, age, deaths, population, cmr, lmr, smr)
 
-smooth_dta_hmd <- smooth_dta_hmd %>% rename(smr_hmd = smr) %>% select(-source)
-smooth_dta_ons <- smooth_dta_ons %>% rename(smr_ons = smr) %>% select(-source)
-
-smooth_dta_both <- full_join(smooth_dta_hmd, smooth_dta_ons, by = c("sex", "year", "age"))
-
-
-smooth_dta_both <- smooth_dta_both  %>% 
-   mutate(tmp1 = (smr_hmd + smr_ons) / 2)  %>% 
-   mutate(
-   smr = ifelse(
-   !is.na(tmp1), 
-   tmp1, 
-   ifelse(
-     !is.na(smr_hmd), 
-     smr_hmd, 
-     ifelse(
-       !is.na(smr_ons), 
-       smr_ons,
-       NA)))
-   ) %>% 
- select(sex, year, age, smr)
+smooth_dta_both <- bind_rows(smooth_dta_ons, smooth_dta_hmd)
 
 
 
 smooth_dta_both %>% 
+  mutate(source_sex = paste(source, sex, sep = "_")) %>% 
   filter(age %in% seq(50, 90, by = 5)) %>% 
-  ggplot(., aes(x = year, y = smr, group = factor(age), colour = factor(age))) + 
+  ggplot(., aes(x = year, y = lmr, group = factor(source_sex), colour = factor(age), shape = source)) + 
   geom_point() + facet_wrap(~ sex) -> g1
 
 g1 
@@ -164,7 +145,7 @@ g1 + geom_vline(mapping = aes(xintercept = 2010))
 
 ggsave("figures/points_2010line.png", width = 30, height=30, dpi = 300, units = "cm")
 
-g1 + coord_cartesian(xlim = c(2000, 2014), ylim = c(-1.5, -0.7)) + stat_smooth()
+g1 + coord_cartesian(xlim = c(2000, 2014), ylim = c(-1.5, -0.7)) + stat_smooth(mapping = aes(group = factor(age)))
 
 ggsave("figures/points_zoomedin_smoother.png", width = 30, height = 30, dpi = 300, units = "cm")
 
