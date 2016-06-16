@@ -2,7 +2,12 @@
 
 
 require(pacman)
-pacman::p_load(readr, readxl, tidyr, dplyr, ggplot2)
+pacman::p_load(
+  readr, readxl, 
+  purrr, tidyr, dplyr, 
+  broom,
+  ggplot2
+  )
 
 location <- "workbook/MF_ewuksyoadeathspopdata_tcm77-427952.xlsx"
 
@@ -194,5 +199,76 @@ smooth_dta_both  %>% mutate(birth_year = year - age) %>%
   coord_cartesian(xlim = c(1910, 1940), ylim = c(-1.5, -0.5))
 
 ggsave("figures/points_by_birth_cohort_zoomedin.png", width = 30, height = 30, dpi = 300, units = "cm")
+
+
+
+
+# Produce further merged/ averaged data -----------------------------------
+
+smooth_dta_both  %>% 
+  filter(source == "ons")   %>% 
+  rename(ons = smr)  %>% 
+  select(sex, year, age, ons) -> tmp_ons
+
+smooth_dta_both  %>% 
+  filter(source == "hmd")  %>% 
+  rename(hmd = smr)  %>% 
+  select(sex, year, age, hmd) -> tmp_hmd
+
+tmp_joined <- full_join(tmp_ons, tmp_hmd)
+
+rm(tmp_ons, tmp_hmd)
+
+tmp_joined %>% 
+  group_by(sex, age) %>% 
+  arrange(year) %>% 
+  mutate(lg_ons = lag(ons), lg_hmd = lag(hmd)) %>%
+  ungroup() %>% 
+  mutate(
+    sm_smr = ifelse(
+      !is.na(ons) & !is.na(lg_ons), 
+      (lg_ons + ons) / 2,
+      ifelse(
+        !is.na(hmd) & !is.na(lg_hmd),
+        (hmd + lg_hmd) / 2,
+        NA
+      )
+    )
+  ) %>% 
+  mutate(year = year - 0.5) %>% 
+  select(sex, year, age, smr = sm_smr) %>% 
+  filter(!is.na(smr)) -> double_smoothed_data
+
+
+double_smoothed_data %>% 
+  filter(age %in% seq(50, 90, by = 5)) %>% 
+  ggplot(., aes(x = year, y = smr, colour = factor(age))) + 
+  geom_point() + facet_wrap(~ sex)
+
+double_smoothed_data %>% 
+  filter(age %in% seq(50, 90, by = 5)) %>% 
+  filter(year >= 1980) %>% 
+  ggplot(., aes(x = year, y = smr, colour = factor(age))) + 
+  geom_point() + facet_wrap(~ sex)
+
+
+double_smoothed_data  %>% 
+  mutate(birth_year = year - age) %>% 
+  filter(age %in% seq(50, 90, by = 5)) %>% 
+  ggplot(., aes(x = birth_year, y = smr, colour = factor(age))) + 
+  geom_point() + facet_wrap(~ sex) + 
+  geom_vline(aes(xintercept = c(1925))) + geom_vline(aes(xintercept = c(1920))) + 
+  coord_cartesian(xlim = c(1910, 1940), ylim = c(-1.5, -0.5))
+    
+
+double_smoothed_data %>% 
+  filter(age %in% seq(50, 90, by = 5)) %>% 
+  filter(year > 1996 & year < 2010) %>% 
+  group_by(sex, age) %>% 
+  nest() %>% 
+  mutate(model = map(data, ~lm(smr ~ year, data = .))) %>% 
+  
+
+
 
 
