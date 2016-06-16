@@ -263,10 +263,36 @@ double_smoothed_data  %>%
 
 double_smoothed_data %>% 
   filter(age %in% seq(50, 90, by = 5)) %>% 
-  filter(year > 1996 & year < 2010) %>% 
+  filter(year > 1996 & year < 2008) %>% 
   group_by(sex, age) %>% 
   nest() %>% 
   mutate(model = map(data, ~lm(smr ~ year, data = .))) %>% 
+  select(sex, age, model) -> sam
+
+
+fn <- function(DATA, MODEL){
+  out <-   predict(MODEL, newdata = data.frame(year = DATA), type = "response")
+  return(out)
+}
+
+double_smoothed_data %>% 
+  filter(age %in% seq(50, 90, by = 5)) %>% 
+  filter(year >= 2010) %>% 
+  left_join(sam) %>% 
+  mutate( smr_predicted  = map2_dbl(year, model, fn)) %>% 
+  select(sex, year, age, smr_predicted) -> predicted_on_newlabour
+
+double_smoothed_data  %>% 
+  left_join(predicted_on_newlabour) -> double_smoothed_data
+
+
+double_smoothed_data %>% 
+  filter(age %in% seq(50, 90, by = 5)) %>% 
+  filter(year >= 2005) %>% 
+  ggplot(., aes(x = year, y = smr, colour = factor(age))) + 
+  geom_point() + facet_wrap(~ sex) + 
+  geom_point(aes(y = smr_predicted), shape = 2)
+
   
 
 
