@@ -496,7 +496,59 @@ fitted_nlfixed %>%
   geom_line(aes(y = fitted)) + 
   facet_wrap(~sex)
 
+# Cumulative, actual vs projected
+dta  %>% 
+  filter(year == 2014)  %>% 
+  filter(place == "ew")  %>% 
+  mutate(year = 2014)  %>% 
+  select(sex, age, population)  %>% 
+  right_join(fitted_nlfixed) %>% 
+  filter(year == max(year)) %>% 
+  mutate(
+    mrt_actual = population * 10^smr, 
+    mrt_proj = population * 10^fitted
+  ) %>% 
+  group_by(sex) %>% 
+  arrange(age) %>% 
+  mutate(
+    cm_mrt_actual = cumsum(mrt_actual),
+    cm_mrt_proj = cumsum(mrt_proj)
+    ) %>% 
+  ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
+  geom_point(aes(y = cm_mrt_actual)) +
+  geom_line(aes(y = cm_mrt_proj)) 
 
+# Cumulative, actual vs projected
+dta  %>% 
+  filter(year == 2014)  %>% 
+  filter(place == "ew")  %>% 
+  mutate(year = 2014)  %>% 
+  select(sex, age, population)  %>% 
+  right_join(fitted_nlfixed) %>% 
+  filter(year == max(year)) %>% 
+  mutate(
+    mrt_actual = population * 10^smr, 
+    mrt_proj = population * 10^fitted,
+    diffs = mrt_actual - mrt_proj
+  ) %>% 
+  group_by(sex) %>% 
+  arrange(age) %>% 
+  mutate(
+    cm_mrt_actual = cumsum(mrt_actual),
+    cm_mrt_proj = cumsum(mrt_proj),
+    cm_diffs = cumsum(diffs)
+  ) %>% 
+  ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
+  geom_line(aes(y = cm_diffs))  + 
+  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+  theme_dark() + 
+  labs(x = "Age in years", y = "Cumulative excess deaths by age")
+
+ggsave("cumulative_mort.png", height = 10, width = 10, dpi = 300, units = "cm")
+
+
+
+  
 
 # What about the coefficients?
 
@@ -526,3 +578,5 @@ double_smoothed_data  %>%
   geom_ribbon(aes(ymin = est_lwr, ymax = est_upr), fill = "lightgrey") + 
   geom_line(aes(y = estimate)) + 
   geom_hline(yintercept = 0)
+
+
