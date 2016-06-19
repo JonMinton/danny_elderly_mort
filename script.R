@@ -417,12 +417,13 @@ double_smoothed_data  %>%
     sds = diff / se
   )  %>% 
   mutate(prb = round(dnorm(sds), 3))  %>% 
-  select(sex, age, year, smr, fitted, prb)  %>% 
+  select(sex, age, year, smr, fitted, prb)  -> fitted_actual
+fitted_actual  %>%  
   filter(year > 2013)   %>% 
   mutate(rrmr = 100000 * 10 ^ smr, rfmr = 100000 * 10^fitted)  %>% 
-  mutate(dif_per_100k = rrmr - rfmr)  -> fitted_actual 
+  mutate(dif_per_100k = rrmr - rfmr)  -> fitted_actual_last 
 
-fitted_actual %>% 
+fitted_actual_last %>% 
   ggplot(.) + 
   geom_line(aes(x = age, y = dif_per_100k)) + 
   facet_wrap( ~ sex)
@@ -433,7 +434,7 @@ dta  %>%
   filter(place == "ew")  %>% 
   mutate(year = 2014)  %>% 
   select(sex, place, age, population)  %>% 
-  right_join(fitted_actual)  %>% 
+  right_join(fitted_actual_last)  %>% 
   mutate(p2 = population / 100000)  %>% 
   mutate(dif_age_adjusted = dif_per_100k * p2)  %>% 
   select(sex, age, dif_age_adjusted) -> diffs_age_adjusted
@@ -450,14 +451,78 @@ diffs_age_adjusted %>%
   group_by(sex) %>% 
   arrange(age) %>% 
   mutate(cumulative_diffs = cumsum(dif_age_adjusted)) %>% 
-  ggplot(., aes(x = age, y = cumulative_diffs, group = sex, colour = sex, shape = sex)) + 
+  ggplot(., aes(x = age, y = cumulative_diffs, group = sex, linetype = sex, shape = sex)) + 
   geom_point() + geom_line()
 
 
+## What I want: fitted on the hypothesis that the new labour trend had continued 
 
-# 2) produce separate analyses projecting up to 2008 and up to 2010
+double_smoothed_data  %>% 
+  filter(age %in% 2:90)  %>% 
+  filter(year >= 1990)  %>% 
+  mutate(
+    newlab = year >= 1997 & year < 2010, 
+    recession = year >= 2008
+    )  %>% 
+  group_by(sex, age)  %>% 
+  nest()  %>% 
+  mutate(
+    model = map(
+      data, 
+      function(x) { 
+        out <- lm(smr ~ year * (newlab + recession), data = x ); 
+        return(out)}
+    )
+  )  %>% mutate(
+    dta2 = map(
+      data, 
+      function(input) {
+        output <- input; 
+        output$newlab <- TRUE; 
+        return(output)
+        }
+      )
+    )  %>% 
+  mutate(pred_nl = map2(model, dta2, augment)) %>% 
+  select(sex, age, pred_nl) %>% 
+  unnest() %>% 
+  select(sex, age, year, smr, fitted = .fitted) -> fitted_nlfixed
 
-# 3) Work out cumulative number of excess deaths per 100 000 at various ages 
-# in 2013
+
+fitted_nlfixed %>% 
+  filter(age %in% c(2, seq(5, 90, by = 5))) %>% 
+  ggplot(., aes(x = year, group = factor(age), colour = factor(age))) + 
+  geom_point(aes(y = smr)) + 
+  geom_line(aes(y = fitted)) + 
+  facet_wrap(~sex)
 
 
+
+# What about the coefficients?
+
+double_smoothed_data  %>% 
+  filter(age %in% 2:90)  %>% 
+  filter(year >= 1990)  %>% 
+  mutate(
+    newlab = year >= 1997 & year < 2010, 
+    recession = year >= 2008
+  )  %>% 
+  group_by(sex, age)  %>% 
+  nest()  %>% 
+  mutate(
+    model = map(
+      data, 
+      function(x) { 
+        out <- lm(smr ~ year * (newlab + recession), data = x ); 
+        return(out)}
+    )
+  )  %>% 
+  mutate(m2 = map(model, tidy))  %>% 
+  select(-data, -model)   %>% 
+  unnest()  %>% 
+  mutate(est_lwr = estimate - 2 * std.error, est_upr = estimate + 2 * std.error)  %>% 
+  ggplot(., aes(x = age)) + 
+  facet_grid(term ~ sex, scales = "free_y") + 
+  geom_ribbon(aes(ymin = est_lwr, ymax = est_upr), fill = "lightgrey") + 
+  geom_line(aes(y = estimate)) + 
+  geom_hline(yintercept = 0)
