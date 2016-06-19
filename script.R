@@ -378,3 +378,86 @@ double_smoothed_data %>%
 
 
 ggsave("figures/points_actual_predicted_on_NL_youngest.png", width = 30, height = 30, dpi = 300, units = "cm")
+
+
+
+# Some analyses  ----------------------------------------------------------
+
+# Some possible things to do 
+
+# 1) work out how likely 2013 levels are given previous trends 
+
+# Start with double_smoothed_data produced as before
+
+double_smoothed_data 
+
+double_smoothed_data  %>% 
+  filter(age %in% 2:90)  %>% 
+  filter(year >= 1990)  %>% 
+  mutate(newlab = year >= 1997 & year < 2010, recession = year >= 2008)  %>% 
+  group_by(sex, age)  %>% 
+  nest()  %>% 
+  mutate(
+    model = map(
+      data, 
+      function(x) { 
+        out <- lm(smr ~ year + newlab + recession, data = x ); 
+        return(out)}
+    )
+  )  %>% 
+  mutate(
+    tidy_mod = map(model, tidy), 
+    augmod = map(model, augment)
+  ) %>% 
+  select(sex, age, augmod) %>% 
+  unnest() %>% 
+  select(sex, age, year, smr, fitted = .fitted, se = .se.fit) %>% 
+  mutate(
+    diff = smr - fitted,
+    sds = diff / se
+  )  %>% 
+  mutate(prb = round(dnorm(sds), 3))  %>% 
+  select(sex, age, year, smr, fitted, prb)  %>% 
+  filter(year > 2013)   %>% 
+  mutate(rrmr = 100000 * 10 ^ smr, rfmr = 100000 * 10^fitted)  %>% 
+  mutate(dif_per_100k = rrmr - rfmr)  -> fitted_actual 
+
+fitted_actual %>% 
+  ggplot(.) + 
+  geom_line(aes(x = age, y = dif_per_100k)) + 
+  facet_wrap( ~ sex)
+
+
+dta  %>% 
+  filter(year == 2014)  %>% 
+  filter(place == "ew")  %>% 
+  mutate(year = 2014)  %>% 
+  select(sex, place, age, population)  %>% 
+  right_join(fitted_actual)  %>% 
+  mutate(p2 = population / 100000)  %>% 
+  mutate(dif_age_adjusted = dif_per_100k * p2)  %>% 
+  select(sex, age, dif_age_adjusted) -> diffs_age_adjusted
+
+diffs_age_adjusted  %>% 
+  ggplot(., aes(x = age, y = dif_age_adjusted, group = sex, colour = sex, shape = sex)) + 
+  geom_point() + 
+  geom_line()
+
+  
+# now to make it cumulative 
+
+diffs_age_adjusted %>% 
+  group_by(sex) %>% 
+  arrange(age) %>% 
+  mutate(cumulative_diffs = cumsum(dif_age_adjusted)) %>% 
+  ggplot(., aes(x = age, y = cumulative_diffs, group = sex, colour = sex, shape = sex)) + 
+  geom_point() + geom_line()
+
+
+
+# 2) produce separate analyses projecting up to 2008 and up to 2010
+
+# 3) Work out cumulative number of excess deaths per 100 000 at various ages 
+# in 2013
+
+
