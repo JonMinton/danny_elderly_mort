@@ -458,6 +458,7 @@ fitted_twoscenarios %>%
   geom_line(aes(y = pred_nl_norec), linetype = "dashed") + 
   facet_wrap(~sex)
 
+ggsave("figures/age_fitted_scenarios.png", height = 30, width = 25, units = "cm", dpi = 300)
 
 # Cumulative, actual vs projected
 dta  %>% 
@@ -482,9 +483,9 @@ dta  %>%
   geom_line(aes(y = cm_mrt_proj)) +
   scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
   theme_dark() + 
-  labs(x = "Age in years", y = "Cumulative actual and projected mortality")
+  labs(x = "Age in years", y = "Total actual and projected mortality by age")
 
-ggsave("figures/cumulative_actual_projected.png", height = 15, width = 15, dpi = 300, units = "cm")
+ggsave("figures/total_actual_projected.png", height = 15, width = 15, dpi = 300, units = "cm")
 
 dta  %>% 
   filter(year == 2014)  %>% 
@@ -509,16 +510,15 @@ dta  %>%
   scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
   scale_y_log10() + 
   theme_dark() + 
-  labs(x = "Age in years", y = "Cumulative actual and projected mortality")
+  labs(x = "Age in years", y = "Total actual and projected mortality")
 
-ggsave("figures/cumulative_actual_projected_log.png", height = 15, width = 15, dpi = 300, units = "cm")
+ggsave("figures/total_actual_projected_log.png", height = 15, width = 15, dpi = 300, units = "cm")
 
 
 # Now the differences 
 dta  %>% 
   filter(year == 2014)  %>% 
   filter(place == "ew")  %>% 
-  mutate(year = 2014)  %>% 
   select(sex, age, population)  %>% 
   right_join(fitted_twoscenarios) %>% 
   filter(year == max(year)) %>% 
@@ -540,36 +540,88 @@ dta  %>%
   theme_dark() + 
   labs(x = "Age in years", y = "Cumulative excess deaths by age")
 
-ggsave("figures/cumulative_excess_deaths_in_2014.png", height = 15, width = 15, dpi = 300, units = "cm")
+ggsave("figures/total_excess_deaths_in_2014.png", height = 15, width = 15, dpi = 300, units = "cm")
 
-
-# Cumulative, actual vs projected
 dta  %>% 
-  filter(year == 2014)  %>% 
+  filter(year == 2013)  %>% 
   filter(place == "ew")  %>% 
-  mutate(year = 2014)  %>% 
   select(sex, age, population)  %>% 
-  right_join(fitted_nlfixed) %>% 
-  filter(year == max(year)) %>% 
+  right_join(fitted_twoscenarios) %>% 
+  filter(year == 2012.5) %>% 
   mutate(
     mrt_actual = population * 10^smr, 
-    mrt_proj = population * 10^fitted,
-    diffs = mrt_actual - mrt_proj
+    mrt_proj = population * 10^pred_nl
   ) %>% 
   group_by(sex) %>% 
   arrange(age) %>% 
   mutate(
     cm_mrt_actual = cumsum(mrt_actual),
-    cm_mrt_proj = cumsum(mrt_proj),
-    cm_diffs = cumsum(diffs)
-  ) %>% 
+    cm_mrt_proj = cumsum(mrt_proj)
+  ) %>%
+  mutate(dif = cm_mrt_actual - cm_mrt_proj) %>%  
   ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
-  geom_line(aes(y = cm_diffs))  + 
+  geom_line(aes(y = dif)) +
   scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+  scale_y_continuous(breaks = seq(-1500, 8000, by = 500)) + 
   theme_dark() + 
   labs(x = "Age in years", y = "Cumulative excess deaths by age")
 
-ggsave("cumulative_mort.png", height = 10, width = 10, dpi = 300, units = "cm")
+ggsave("figures/total_excess_deaths_in_2013.png", height = 15, width = 15, dpi = 300, units = "cm")
+
+
+
+dta  %>% 
+  filter(year == 2012)  %>% 
+  filter(place == "ew")  %>% 
+  select(sex, age, population)  %>% 
+  right_join(fitted_twoscenarios) %>% 
+  filter(year == 2011.5) %>% 
+  mutate(
+    mrt_actual = population * 10^smr, 
+    mrt_proj = population * 10^pred_nl
+  ) %>% 
+  group_by(sex) %>% 
+  arrange(age) %>% 
+  mutate(
+    cm_mrt_actual = cumsum(mrt_actual),
+    cm_mrt_proj = cumsum(mrt_proj)
+  ) %>%
+  mutate(dif = cm_mrt_actual - cm_mrt_proj) %>%  
+  ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
+  geom_line(aes(y = dif)) +
+  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+  scale_y_continuous(breaks = seq(-4000, 8000, by = 500)) + 
+  theme_dark() + 
+  labs(x = "Age in years", y = "Cumulative excess deaths by age")
+
+ggsave("figures/total_excess_deaths_in_2012.png", height = 15, width = 15, dpi = 300, units = "cm")
+
+
+dta  %>% 
+  filter(year == 2011)  %>% 
+  filter(place == "ew")  %>% 
+  select(sex, age, population)  %>% 
+  right_join(fitted_twoscenarios) %>% 
+  filter(year == 2010.5) %>% 
+  mutate(
+    mrt_actual = population * 10^smr, 
+    mrt_proj = population * 10^pred_nl
+  ) %>% 
+  group_by(sex) %>% 
+  arrange(age) %>% 
+  mutate(
+    cm_mrt_actual = cumsum(mrt_actual),
+    cm_mrt_proj = cumsum(mrt_proj)
+  ) %>%
+  mutate(dif = cm_mrt_actual - cm_mrt_proj) %>%  
+  ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
+  geom_line(aes(y = dif)) +
+  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+  scale_y_continuous(breaks = seq(-6000, 8000, by = 500)) + 
+  theme_dark() + 
+  labs(x = "Age in years", y = "Cumulative excess deaths by age")
+
+ggsave("figures/total_excess_deaths_in_2011.png", height = 15, width = 15, dpi = 300, units = "cm")
 
 
 
