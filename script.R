@@ -581,8 +581,8 @@ double_smoothed_data  %>%
   filter(age %in% 2:90)  %>% 
   filter(year >= 1990)  %>% 
   mutate(
-    newlab = year >= 1997 & year < 2010, 
-    recession = year >= 2008
+    newlab = year >= 1997 & year <= 2010, 
+    recession = year %in% c(2007.5, 2008.5, 2009.5)
   )  %>% 
   group_by(sex, age)  %>% 
   nest()  %>% 
@@ -604,4 +604,6 @@ double_smoothed_data  %>%
   geom_line(aes(y = estimate)) + 
   geom_hline(yintercept = 0)
 
+
+ggsave("figures/coefficients_with_age.png", height =30, width = 20, dpi = 300, units = "cm")
 
