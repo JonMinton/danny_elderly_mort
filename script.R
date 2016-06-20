@@ -391,69 +391,6 @@ ggsave("figures/points_actual_predicted_on_NL_youngest.png", width = 30, height 
 
 double_smoothed_data 
 
-double_smoothed_data  %>% 
-  filter(age %in% 2:90)  %>% 
-  filter(year >= 1990)  %>% 
-  mutate(newlab = year >= 1997 & year < 2010, recession = year >= 2008)  %>% 
-  group_by(sex, age)  %>% 
-  nest()  %>% 
-  mutate(
-    model = map(
-      data, 
-      function(x) { 
-        out <- lm(smr ~ year + newlab + recession, data = x ); 
-        return(out)}
-    )
-  )  %>% 
-  mutate(
-    tidy_mod = map(model, tidy), 
-    augmod = map(model, augment)
-  ) %>% 
-  select(sex, age, augmod) %>% 
-  unnest() %>% 
-  select(sex, age, year, smr, fitted = .fitted, se = .se.fit) %>% 
-  mutate(
-    diff = smr - fitted,
-    sds = diff / se
-  )  %>% 
-  mutate(prb = round(dnorm(sds), 3))  %>% 
-  select(sex, age, year, smr, fitted, prb)  -> fitted_actual
-fitted_actual  %>%  
-  filter(year > 2013)   %>% 
-  mutate(rrmr = 100000 * 10 ^ smr, rfmr = 100000 * 10^fitted)  %>% 
-  mutate(dif_per_100k = rrmr - rfmr)  -> fitted_actual_last 
-
-fitted_actual_last %>% 
-  ggplot(.) + 
-  geom_line(aes(x = age, y = dif_per_100k)) + 
-  facet_wrap( ~ sex)
-
-
-dta  %>% 
-  filter(year == 2014)  %>% 
-  filter(place == "ew")  %>% 
-  mutate(year = 2014)  %>% 
-  select(sex, place, age, population)  %>% 
-  right_join(fitted_actual_last)  %>% 
-  mutate(p2 = population / 100000)  %>% 
-  mutate(dif_age_adjusted = dif_per_100k * p2)  %>% 
-  select(sex, age, dif_age_adjusted) -> diffs_age_adjusted
-
-diffs_age_adjusted  %>% 
-  ggplot(., aes(x = age, y = dif_age_adjusted, group = sex, colour = sex, shape = sex)) + 
-  geom_point() + 
-  geom_line()
-
-  
-# now to make it cumulative 
-
-diffs_age_adjusted %>% 
-  group_by(sex) %>% 
-  arrange(age) %>% 
-  mutate(cumulative_diffs = cumsum(dif_age_adjusted)) %>% 
-  ggplot(., aes(x = age, y = cumulative_diffs, group = sex, linetype = sex, shape = sex)) + 
-  geom_point() + geom_line()
-
 
 ## What I want: fitted on the hypothesis that the new labour trend had continued 
 
@@ -461,8 +398,8 @@ double_smoothed_data  %>%
   filter(age %in% 2:90)  %>% 
   filter(year >= 1990)  %>% 
   mutate(
-    newlab = year >= 1997 & year < 2010, 
-    recession = year >= 2008
+    newlab = year >= 1997 & year <= 2010, 
+    recession = year %in% c(2007.5, 2008.5, 2009.5)
     )  %>% 
   group_by(sex, age)  %>% 
   nest()  %>% 
@@ -473,28 +410,54 @@ double_smoothed_data  %>%
         out <- lm(smr ~ year * (newlab + recession), data = x ); 
         return(out)}
     )
-  )  %>% mutate(
+  )  %>% 
+  mutate(
     dta2 = map(
       data, 
       function(input) {
-        output <- input; 
-        output$newlab <- TRUE; 
+        output <- input 
+        output$newlab <- TRUE
         return(output)
         }
-      )
+      ),
+    dta3 = map(
+      data,
+      function(input) {
+        output <- input
+        output$newlab <- TRUE
+        output$recession <- FALSE
+        return(output)
+      }
+    )
     )  %>% 
-  mutate(pred_nl = map2(model, dta2, augment)) %>% 
-  select(sex, age, pred_nl) %>% 
+  mutate(
+    pred_nl = map2(
+      model, dta2, 
+      function(x, y){
+        out <- predict(x, newdata = y, type = "response")
+        return(out)
+    }),
+    pred_nl_norec = map2(
+      model, dta3, 
+      function(x, y){
+        out <- predict(x, newdata = y, type = "response")
+        return(out)
+    })
+    ) %>% 
+  select(sex, age, data, pred_nl, pred_nl_norec) %>% 
   unnest() %>% 
-  select(sex, age, year, smr, fitted = .fitted) -> fitted_nlfixed
+  select(sex, year, age, smr, pred_nl, pred_nl_norec) -> fitted_twoscenarios 
 
 
-fitted_nlfixed %>% 
+
+fitted_twoscenarios %>% 
   filter(age %in% c(2, seq(5, 90, by = 5))) %>% 
   ggplot(., aes(x = year, group = factor(age), colour = factor(age))) + 
   geom_point(aes(y = smr)) + 
-  geom_line(aes(y = fitted)) + 
+  geom_line(aes(y = pred_nl)) + 
+  geom_line(aes(y = pred_nl_norec), linetype = "dashed") + 
   facet_wrap(~sex)
+
 
 # Cumulative, actual vs projected
 dta  %>% 
@@ -502,11 +465,11 @@ dta  %>%
   filter(place == "ew")  %>% 
   mutate(year = 2014)  %>% 
   select(sex, age, population)  %>% 
-  right_join(fitted_nlfixed) %>% 
+  right_join(fitted_twoscenarios) %>% 
   filter(year == max(year)) %>% 
   mutate(
     mrt_actual = population * 10^smr, 
-    mrt_proj = population * 10^fitted
+    mrt_proj = population * 10^pred_nl
   ) %>% 
   group_by(sex) %>% 
   arrange(age) %>% 
@@ -516,7 +479,69 @@ dta  %>%
     ) %>% 
   ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
   geom_point(aes(y = cm_mrt_actual)) +
-  geom_line(aes(y = cm_mrt_proj)) 
+  geom_line(aes(y = cm_mrt_proj)) +
+  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+  theme_dark() + 
+  labs(x = "Age in years", y = "Cumulative actual and projected mortality")
+
+ggsave("figures/cumulative_actual_projected.png", height = 15, width = 15, dpi = 300, units = "cm")
+
+dta  %>% 
+  filter(year == 2014)  %>% 
+  filter(place == "ew")  %>% 
+  mutate(year = 2014)  %>% 
+  select(sex, age, population)  %>% 
+  right_join(fitted_twoscenarios) %>% 
+  filter(year == max(year)) %>% 
+  mutate(
+    mrt_actual = population * 10^smr, 
+    mrt_proj = population * 10^pred_nl
+  ) %>% 
+  group_by(sex) %>% 
+  arrange(age) %>% 
+  mutate(
+    cm_mrt_actual = cumsum(mrt_actual),
+    cm_mrt_proj = cumsum(mrt_proj)
+  ) %>% 
+  ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
+  geom_point(aes(y = cm_mrt_actual)) +
+  geom_line(aes(y = cm_mrt_proj)) +
+  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+  scale_y_log10() + 
+  theme_dark() + 
+  labs(x = "Age in years", y = "Cumulative actual and projected mortality")
+
+ggsave("figures/cumulative_actual_projected_log.png", height = 15, width = 15, dpi = 300, units = "cm")
+
+
+# Now the differences 
+dta  %>% 
+  filter(year == 2014)  %>% 
+  filter(place == "ew")  %>% 
+  mutate(year = 2014)  %>% 
+  select(sex, age, population)  %>% 
+  right_join(fitted_twoscenarios) %>% 
+  filter(year == max(year)) %>% 
+  mutate(
+    mrt_actual = population * 10^smr, 
+    mrt_proj = population * 10^pred_nl
+  ) %>% 
+  group_by(sex) %>% 
+  arrange(age) %>% 
+  mutate(
+    cm_mrt_actual = cumsum(mrt_actual),
+    cm_mrt_proj = cumsum(mrt_proj)
+  ) %>%
+  mutate(dif = cm_mrt_actual - cm_mrt_proj) %>%  
+  ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
+  geom_line(aes(y = dif)) +
+  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+  scale_y_continuous(breaks = seq(-1500, 8000, by = 500)) + 
+  theme_dark() + 
+  labs(x = "Age in years", y = "Cumulative excess deaths by age")
+
+ggsave("figures/cumulative_excess_deaths_in_2014.png", height = 15, width = 15, dpi = 300, units = "cm")
+
 
 # Cumulative, actual vs projected
 dta  %>% 
