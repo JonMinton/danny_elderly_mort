@@ -92,6 +92,15 @@ dta_deaths <- Reduce(bind_rows, list(ew_female_deaths, ew_male_deaths, uk_female
 dta <- inner_join(dta_deaths, dta_population)
 
 
+# Now to start to add new data from ons 
+
+ew_new_2014 <- read_excel(
+  "workbook/analysistoolmid2014uk/Analysis Tool mid-2014 UK.xlsx",
+  sheet = "Detailed Components EW"
+  )
+
+
+#
 # augment with hmd --------------------------------------------------------
 
 hmd <- read_csv("hmd/counts.csv")
