@@ -6,7 +6,7 @@ pacman::p_load(
   readr, readxl, 
   purrr, tidyr, dplyr, 
   broom,
-  ggplot2
+  ggplot2, cowplot
   )
 
 location <- "workbook/MF_ewuksyoadeathspopdata_tcm77-427952.xlsx"
@@ -91,14 +91,25 @@ dta_deaths <- Reduce(bind_rows, list(ew_female_deaths, ew_male_deaths, uk_female
 
 dta <- inner_join(dta_deaths, dta_population)
 
+dta <- dta %>% mutate(year = as.numeric())
 
 # Now to start to add new data from ons 
 
-ew_new_2014 <- read_excel(
-  "workbook/analysistoolmid2014uk/Analysis Tool mid-2014 UK.xlsx",
-  sheet = "Detailed Components EW"
+ew_new_2015 <- read_csv(
+  "workbook/ukmye2015/MYEB2_detailed_components_of_change_series_EW_(0215).csv"
   )
 
+ew_new_2015  %>% 
+  select(lad2014_code, sex, age, population = population_2015, deaths = deaths_2015)  %>% 
+  group_by(sex, age)  %>% 
+  summarise(deaths = sum(deaths), population = sum(population) ) %>% 
+  mutate(year = 2015)  %>%
+  mutate(place = "ew") %>% 
+  select(sex, place, year, age, deaths, population)  %>% 
+  ungroup()  %>% 
+  mutate(sex = ifelse(sex == 1, "male", ifelse(sex == 2, "female", NA))) -> dta_2015
+
+dta <- bind_rows(dta, dta_2015)
 
 #
 # augment with hmd --------------------------------------------------------
@@ -471,9 +482,9 @@ ggsave("figures/age_fitted_scenarios.png", height = 30, width = 25, units = "cm"
 
 # Cumulative, actual vs projected
 dta  %>% 
-  filter(year == 2014)  %>% 
+  filter(year == 2015)  %>% 
   filter(place == "ew")  %>% 
-  mutate(year = 2014)  %>% 
+  mutate(year = 2015)  %>% 
   select(sex, age, population)  %>% 
   right_join(fitted_twoscenarios) %>% 
   filter(year == max(year)) %>% 
@@ -497,9 +508,9 @@ dta  %>%
 ggsave("figures/total_actual_projected.png", height = 15, width = 15, dpi = 300, units = "cm")
 
 dta  %>% 
-  filter(year == 2014)  %>% 
+  filter(year == 2015)  %>% 
   filter(place == "ew")  %>% 
-  mutate(year = 2014)  %>% 
+  mutate(year = 2015)  %>% 
   select(sex, age, population)  %>% 
   right_join(fitted_twoscenarios) %>% 
   filter(year == max(year)) %>% 
@@ -524,58 +535,46 @@ dta  %>%
 ggsave("figures/total_actual_projected_log.png", height = 15, width = 15, dpi = 300, units = "cm")
 
 
-# Now the differences 
-dta  %>% 
-  filter(year == 2014)  %>% 
-  filter(place == "ew")  %>% 
-  select(sex, age, population)  %>% 
-  right_join(fitted_twoscenarios) %>% 
-  filter(year == max(year)) %>% 
-  mutate(
-    mrt_actual = population * 10^smr, 
-    mrt_proj = population * 10^pred_nl
-  ) %>% 
-  group_by(sex) %>% 
-  arrange(age) %>% 
-  mutate(
-    cm_mrt_actual = cumsum(mrt_actual),
-    cm_mrt_proj = cumsum(mrt_proj)
-  ) %>%
-  mutate(dif = cm_mrt_actual - cm_mrt_proj) %>%  
-  ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
-  geom_line(aes(y = dif)) +
-  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
-  scale_y_continuous(breaks = seq(-1500, 8000, by = 500)) + 
-  theme_dark() + 
-  labs(x = "Age in years", y = "Cumulative excess deaths by age")
+draw_diffs <- function(YEAR){
+  
+  dta  %>% 
+    filter(year == YEAR)  %>% 
+    filter(place == "ew")  %>% 
+    select(sex, age, population)  %>% 
+    right_join(fitted_twoscenarios) %>% 
+    filter(year == YEAR - 0.5) %>% 
+    mutate(
+      mrt_actual = population * 10^smr, 
+      mrt_proj = population * 10^pred_nl
+    ) %>% 
+    group_by(sex) %>% 
+    arrange(age) %>% 
+    mutate(
+      cm_mrt_actual = cumsum(mrt_actual),
+      cm_mrt_proj = cumsum(mrt_proj)
+    ) %>%
+    mutate(dif = cm_mrt_actual - cm_mrt_proj) %>%  
+    ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
+    geom_line(aes(y = dif)) +
+    scale_x_continuous(limits = c(0, 90), breaks = c(0, seq(10, 90, by = 10))) + 
+    scale_y_continuous(limits = c(-4000, 10000), breaks = seq(-4000, 10000, by = 500)) + 
+    theme_minimal() + 
+    labs(x = "Age in years", y = "Total additional deaths by\n age on x axis", title = YEAR) -> output
+  
+  return(output)
+}
 
-ggsave("figures/total_excess_deaths_in_2014.png", height = 15, width = 15, dpi = 300, units = "cm")
+plot_grid(
+  draw_diffs(2010), 
+  draw_diffs(2011),
+  draw_diffs(2012),
+  draw_diffs(2013),
+  draw_diffs(2014),
+  draw_diffs(2015),
+  nrow = 2
+) -> g
 
-dta  %>% 
-  filter(year == 2013)  %>% 
-  filter(place == "ew")  %>% 
-  select(sex, age, population)  %>% 
-  right_join(fitted_twoscenarios) %>% 
-  filter(year == 2012.5) %>% 
-  mutate(
-    mrt_actual = population * 10^smr, 
-    mrt_proj = population * 10^pred_nl
-  ) %>% 
-  group_by(sex) %>% 
-  arrange(age) %>% 
-  mutate(
-    cm_mrt_actual = cumsum(mrt_actual),
-    cm_mrt_proj = cumsum(mrt_proj)
-  ) %>%
-  mutate(dif = cm_mrt_actual - cm_mrt_proj) %>%  
-  ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
-  geom_line(aes(y = dif)) +
-  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
-  scale_y_continuous(breaks = seq(-1500, 8000, by = 500)) + 
-  theme_dark() + 
-  labs(x = "Age in years", y = "Cumulative excess deaths by age")
-
-ggsave("figures/total_excess_deaths_in_2013.png", height = 15, width = 15, dpi = 300, units = "cm")
+ggsave("figures/total_excess_deaths_2010_2015.png", height = 30, width = 40, dpi = 300, units = "cm")
 
 
 
