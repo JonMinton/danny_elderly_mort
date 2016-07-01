@@ -3,7 +3,7 @@
 
 require(pacman)
 pacman::p_load(
-  readr, readxl, 
+  readr, readxl, xlsx,
   purrr, tidyr, dplyr, 
   broom,
   ggplot2, cowplot, scales
@@ -114,10 +114,10 @@ dta <- bind_rows(dta, dta_2015)
 dta  %>% 
   filter(age <= 95)  %>% 
   filter(year >= 1990)  %>% 
+  filter(place == "ew") %>% 
   mutate(lmr = log(deaths/population, 10)) %>% 
   mutate(
     newlab = year >= 1997 & year <= 2010, 
-    thatcher = year >= 1979 & year <= 1989,
     recession = year %in% 2008:2009
   )  %>% 
   group_by(sex, age)  %>% 
@@ -128,30 +128,14 @@ dta  %>%
       function(x) { 
         out <- lm(lmr ~ year * (newlab + recession), data = x ); 
         return(out)}
-    ),
-    model_nl_th = map(
-      data, 
-      function(x) {
-        out <- lm(lmr ~ year * (newlab + thatcher + recession), data = x)
-        return(out)
-      }
     )
-  )  %>% 
+  ) %>% 
   mutate(
     dta2 = map(
       data, 
       function(input) {
         output <- input 
         output$newlab <- TRUE
-        return(output)
-      }
-    ),
-    dta3 = map(
-      data,
-      function(input) {
-        output <- input
-        output$newlab <- TRUE
-        output$recession <- FALSE
         return(output)
       }
     )
@@ -162,29 +146,11 @@ dta  %>%
       function(x, y){
         out <- predict(x, newdata = y, type = "response")
         return(out)
-      }),
-    pred_nl_norec = map2(
-      model_nl, dta3, 
-      function(x, y){
-        out <- predict(x, newdata = y, type = "response")
-        return(out)
-      }),
-    pred_nl_th = map2(
-      model_nl_th, dta2,
-      function(x, y){
-        out <- predict(x, newdata = y, type = "response")
-        return(out)
-      }),
-    pred_nl_th_norec = map2(
-      model_nl_th, dta3,
-      function(x, y){
-        out <- predict(x, newdata = y, type = "response")
-        return(out)
       })
   ) %>% 
-  select(sex, age, data, pred_nl, pred_nl_norec, pred_nl_th, pred_nl_th_norec) %>% 
+  select(sex, age, data, pred_nl) %>% 
   unnest() %>% 
-  select(sex, year, age, lmr, pred_nl, pred_nl_norec, pred_nl_th, pred_nl_th_norec) -> fitted_twoscenarios 
+  select(sex, year, age, lmr, pred_nl) -> fitted_twoscenarios 
 
 
 
@@ -193,30 +159,26 @@ fitted_twoscenarios %>%
   ggplot(., aes(x = year, group = factor(age), colour = factor(age))) + 
   geom_point(aes(y = lmr)) + 
   geom_line(aes(y = pred_nl)) + 
-  geom_line(aes(y = pred_nl_norec), linetype = "dashed") + 
   facet_wrap(~sex)
 
 ggsave("figures/age_fitted_scenarios.png", height = 30, width = 25, units = "cm", dpi = 300)
 
-fitted_twoscenarios %>% 
-  filter(age %in% c(0, seq(5, 95, by = 5))) %>% 
-  ggplot(., aes(x = year, group = factor(age), colour = factor(age))) + 
-  geom_point(aes(y = lmr)) + 
-  geom_line(aes(y = pred_nl_th)) + 
-  geom_line(aes(y = pred_nl_th_norec), linetype = "dashed") + 
-  facet_wrap(~sex)
 
 
 # Cumulative, actual vs projected
 
-plot_actualprojected <- function(YEAR){
+plot_actualprojected <- function(YEAR, XLIMS = c(0, 95)){
+  tmp <- fitted_twoscenarios %>% 
+    filter(year == YEAR) %>% 
+    select(sex, age, lmr, pred_nl)  
+    
+  
   dta  %>% 
     filter(year == YEAR)  %>% 
     filter(place == "ew")  %>% 
-    mutate(year = YEAR)  %>% 
     select(sex, age, population)  %>% 
-    right_join(fitted_twoscenarios) %>% 
-    filter(year == max(year)) %>% 
+    right_join(tmp) %>%
+    filter(age >= XLIMS[1], age <= XLIMS[2]) %>% 
     mutate(
       mrt_actual = population * 10^lmr, 
       mrt_proj = population * 10^pred_nl
@@ -230,7 +192,7 @@ plot_actualprojected <- function(YEAR){
     ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
     geom_point(aes(y = cm_mrt_actual)) +
     geom_line(aes(y = cm_mrt_proj)) +
-    scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+    scale_x_continuous(limits = c(0, 95), breaks = c(0, seq(10, 90, by = 10))) + 
     scale_y_continuous(limits = c(0, 250000), labels = comma) +
     theme_minimal() + 
     labs(x = "Age in years", y = "Total actual and projected mortality by age", title = YEAR) -> output
@@ -243,7 +205,7 @@ plot_grid(
   plot_actualprojected(2012), 
   plot_actualprojected(2013), 
   plot_actualprojected(2014), 
-  plot_actualprojected(2015), 
+  plot_actualprojected(2015, XLIMS = c(0, 89)), 
   nrow = 2
 ) -> g
 print(g)
@@ -251,14 +213,18 @@ print(g)
 ggsave("figures/onsonly_excess_deaths_2010_2015.png", height = 30, width = 40, dpi = 300, units = "cm")
 
 # As above, but log scale
-plot_actualprojected_log <- function(YEAR){
+plot_actualprojected_log <- function(YEAR, XLIMS = c(0, 95), XFOCUS = c(0, 95), YFOCUS = c(500, 250000)){
+  tmp <- fitted_twoscenarios %>% 
+    filter(year == YEAR) %>% 
+    select(sex, age, lmr, pred_nl)  
+  
+  
   dta  %>% 
     filter(year == YEAR)  %>% 
     filter(place == "ew")  %>% 
-    mutate(year = YEAR)  %>% 
     select(sex, age, population)  %>% 
-    right_join(fitted_twoscenarios) %>% 
-    filter(year == max(year)) %>% 
+    right_join(tmp) %>%
+    filter(age >= XLIMS[1], age <= XLIMS[2]) %>% 
     mutate(
       mrt_actual = population * 10^lmr, 
       mrt_proj = population * 10^pred_nl
@@ -272,8 +238,8 @@ plot_actualprojected_log <- function(YEAR){
     ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
     geom_point(aes(y = cm_mrt_actual)) +
     geom_line(aes(y = cm_mrt_proj)) +
-    scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
-    scale_y_log10(limits = c(500, 250000), breaks = c(1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000), labels = comma) +
+    scale_x_continuous(limits = XFOCUS, breaks = c(0, seq(10, 90, by = 10))) + 
+    scale_y_log10(limits = YFOCUS, breaks = c(1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000), labels = comma) +
     theme_minimal() + 
     labs(x = "Age in years", y = "Total actual and projected mortality by age", title = YEAR) -> output
   return(output)
@@ -285,16 +251,29 @@ plot_grid(
   plot_actualprojected_log(2012), 
   plot_actualprojected_log(2013), 
   plot_actualprojected_log(2014), 
-  plot_actualprojected_log(2015), 
+  plot_actualprojected_log(2015, XLIMS = c(0, 89)), 
   nrow = 2
 ) -> g
 
 print(g)
 
-ggsave("figures/ons_only_total_actual_and_projected_2010_2015.png", height = 30, width = 40, dpi = 300, units = "cm")
+ggsave("figures/ons_only_total_actual_and_projected_2010_2015_logscale.png", height = 30, width = 40, dpi = 300, units = "cm")
 
+# As above, but zoomed into older ages 
 
-draw_diffs <- function(YEAR, XLIMS = c(-12000, 20000)){
+plot_grid(
+  plot_actualprojected_log(2010, XFOCUS = c(60, 95), YFOCUS = c(20000, 250000)), 
+  plot_actualprojected_log(2011, XFOCUS = c(60, 95), YFOCUS = c(20000, 250000)), 
+  plot_actualprojected_log(2012, XFOCUS = c(60, 95), YFOCUS = c(20000, 250000)), 
+  plot_actualprojected_log(2013, XFOCUS = c(60, 95), YFOCUS = c(20000, 250000)), 
+  plot_actualprojected_log(2014, XFOCUS = c(60, 95), YFOCUS = c(20000, 250000)), 
+  plot_actualprojected_log(2015, XFOCUS = c(60, 95), YFOCUS = c(20000, 250000), XLIMS = c(0, 89)),
+  nrow = 2 ) -> g
+print(g)
+
+ggsave("figures/ons_only_total_actual_and_projected_2010_2015_logscale_olderages.png", height = 30, width = 40, dpi = 300, units = "cm")
+
+draw_diffs <- function(YEAR, XLIMS = c(-12000, 20000), RETURN = "graph"){
   dta  %>% 
     filter(year == YEAR)  %>% 
     filter(place == "ew")  %>% 
@@ -311,7 +290,9 @@ draw_diffs <- function(YEAR, XLIMS = c(-12000, 20000)){
       cm_mrt_actual = cumsum(mrt_actual),
       cm_mrt_proj = cumsum(mrt_proj)
     ) %>%
-    mutate(dif = cm_mrt_actual - cm_mrt_proj) %>%  
+    mutate(dif = cm_mrt_actual - cm_mrt_proj) %>% 
+    select(sex, year, age, dif) -> simple_diffs 
+    simple_diffs %>% 
     ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
     geom_line(aes(y = dif)) +
     scale_x_continuous(limits = c(0, 95), breaks = c(0, seq(10, 90, by = 10))) + 
@@ -321,10 +302,11 @@ draw_diffs <- function(YEAR, XLIMS = c(-12000, 20000)){
     theme_minimal() + 
     labs(x = "Age in years", y = "Total additional deaths by\n age on x axis", title = YEAR) -> output
   
+  if (RETURN == "table") {output <- simple_diffs}
   return(output)
 }
 
-draw_diffs_extrapolate <- function(YEAR, XLIMS = c(-12000, 20000)){
+draw_diffs_extrapolate <- function(YEAR, XLIMS = c(-12000, 20000), RETURN = "graph"){
   dta  %>% 
     filter(year == YEAR)  %>% 
     filter(place == "ew")  %>% 
@@ -378,8 +360,10 @@ draw_diffs_extrapolate <- function(YEAR, XLIMS = c(-12000, 20000)){
    female_extrapolate_difs <- female_extrapolate_difs %>% filter(age != 89)
     male_extrapolate_difs <- male_extrapolate_difs %>% filter(age != 89)
 
-   simple_diffs <- bind_rows(simple_diffs, female_extrapolate_difs, male_extrapolate_difs)  %>% 
-     arrange(sex, age)
+   simple_diffs <- bind_rows(simple_diffs, female_extrapolate_difs, male_extrapolate_difs)  %>%
+     mutate(year = YEAR) %>% 
+     arrange(sex, age) %>% 
+     select(sex, year, age, dif)
    
       
     simple_diffs %>% 
@@ -392,6 +376,7 @@ draw_diffs_extrapolate <- function(YEAR, XLIMS = c(-12000, 20000)){
     theme_minimal() + 
     labs(x = "Age in years", y = "Total additional deaths by\n age on x axis", title = YEAR) -> output
   
+    if(RETURN == "table") {output <- simple_diffs}
   return(output)
 }
 
@@ -411,6 +396,24 @@ plot_grid(
 print(g)
 
 ggsave("figures/ons_only_total_excess_deaths_2010_2015_upto16k_extrapolated.png", height = 30, width = 40, dpi = 300, units = "cm")
+
+# For the numbers themselves 
+
+draw_diffs(2010, RETURN = "table") -> d_10
+draw_diffs(2011, RETURN = "table") -> d_11
+draw_diffs(2012, RETURN = "table") -> d_12
+draw_diffs(2013, RETURN = "table") -> d_13
+draw_diffs(2014, RETURN = "table") -> d_14
+draw_diffs_extrapolate(2015, RETURN = "table") -> d_15
+
+d_all <- Reduce(bind_rows, list(d_10, d_11, d_12, d_13, d_14, d_15))
+
+d_all %>% 
+  filter(!is.na(dif)) %>% 
+  mutate(dif = round(dif, 0)) %>% 
+  spread(year, dif) -> spread_diffs
+
+write.xlsx(spread_diffs, "tables/tables.xlsx", "differences_by_year")
 
 
 # Coefficients?
