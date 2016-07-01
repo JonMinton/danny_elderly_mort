@@ -155,19 +155,33 @@ dta  %>%
 
 
 fitted_twoscenarios %>% 
-  filter(age %in% c(0, seq(5, 95, by = 5))) %>% 
-  ggplot(., aes(x = year, group = factor(age), colour = factor(age))) + 
+  filter(age %in% seq(60, 85, by = 5)) %>% 
+  mutate(age = factor(age)) %>% 
+  ggplot(., aes(x = year, shape = age, group = age, colour = age)) + 
   geom_point(aes(y = lmr)) + 
   geom_line(aes(y = pred_nl)) + 
-  facet_wrap(~sex)
+  facet_wrap(~sex) + 
+  labs(x = "Year", y = "Base 10 Log mortality risk at age") 
 
 ggsave("figures/age_fitted_scenarios.png", height = 30, width = 25, units = "cm", dpi = 300)
 
+# As above but actual not log
+
+fitted_twoscenarios %>% 
+  filter(age %in% seq(60, 85, by = 5)) %>% 
+  mutate(age = factor(age)) %>% 
+  ggplot(., aes(x = year, shape = age, group = age, colour = age)) + 
+  geom_point(aes(y = 10^lmr)) + 
+  geom_line(aes(y = 10^pred_nl)) + 
+  facet_wrap(~sex) + 
+  labs(x = "Year", y = "Mortality risk at age") 
+
+ggsave("figures/age_fitted_scenarios_identity.png", height = 30, width = 25, units = "cm", dpi = 300)
 
 
 # Cumulative, actual vs projected
 
-plot_actualprojected <- function(YEAR, XLIMS = c(0, 95)){
+plot_actualprojected <- function(YEAR, XLIMS = c(0, 95), RETURN = "graph"){
   tmp <- fitted_twoscenarios %>% 
     filter(year == YEAR) %>% 
     select(sex, age, lmr, pred_nl)  
@@ -188,7 +202,10 @@ plot_actualprojected <- function(YEAR, XLIMS = c(0, 95)){
     mutate(
       cm_mrt_actual = cumsum(mrt_actual),
       cm_mrt_proj = cumsum(mrt_proj)
-    ) %>% 
+    ) -> tables 
+  
+    
+    tables %>% 
     ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
     geom_point(aes(y = cm_mrt_actual)) +
     geom_line(aes(y = cm_mrt_proj)) +
@@ -196,6 +213,8 @@ plot_actualprojected <- function(YEAR, XLIMS = c(0, 95)){
     scale_y_continuous(limits = c(0, 250000), labels = comma) +
     theme_minimal() + 
     labs(x = "Age in years", y = "Total actual and projected mortality by age", title = YEAR) -> output
+    
+    if(RETURN == "table"){output <- tables}
   return(output)
 }
 
@@ -212,6 +231,23 @@ print(g)
 
 ggsave("figures/onsonly_excess_deaths_2010_2015.png", height = 30, width = 40, dpi = 300, units = "cm")
 
+# Now to export this as a table 
+
+plot_actualprojected(2010, RETURN = "table") %>% mutate(year = 2010)-> t_10
+plot_actualprojected(2011, RETURN = "table") %>% mutate(year = 2011)-> t_11
+plot_actualprojected(2012, RETURN = "table") %>% mutate(year = 2012)-> t_12
+plot_actualprojected(2013, RETURN = "table") %>% mutate(year = 2013)-> t_13
+plot_actualprojected(2014, RETURN = "table") %>% mutate(year = 2014)-> t_14
+plot_actualprojected(2015, RETURN = "table") %>% mutate(year = 2015)-> t_15
+
+t_all <- Reduce(bind_rows, list(t_10, t_11, t_12, t_13, t_14, t_15))
+
+t_all %>% 
+  select(sex, year, age, population, lmr, pred_nl, 
+         mrt_actual, mrt_proj, cm_mrt_actual, cm_mrt_proj
+         ) -> t_all
+
+write.xlsx(t_all, "tables/tables.xlsx", "cumulative_projected_actual_mort")
 # As above, but log scale
 plot_actualprojected_log <- function(YEAR, XLIMS = c(0, 95), XFOCUS = c(0, 95), YFOCUS = c(500, 250000)){
   tmp <- fitted_twoscenarios %>% 
@@ -272,6 +308,9 @@ plot_grid(
 print(g)
 
 ggsave("figures/ons_only_total_actual_and_projected_2010_2015_logscale_olderages.png", height = 30, width = 40, dpi = 300, units = "cm")
+
+
+
 
 draw_diffs <- function(YEAR, XLIMS = c(-12000, 20000), RETURN = "graph"){
   dta  %>% 
@@ -413,7 +452,7 @@ d_all %>%
   mutate(dif = round(dif, 0)) %>% 
   spread(year, dif) -> spread_diffs
 
-write.xlsx(spread_diffs, "tables/tables.xlsx", "differences_by_year")
+
 
 
 # Coefficients?
