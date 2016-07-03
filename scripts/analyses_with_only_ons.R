@@ -179,10 +179,10 @@ fitted_twoscenarios %>%
   facet_wrap(~sex) + 
   labs(x = "Year", y = "Base 10 log mortality risk at age") + 
   geom_vline(xintercept = 1997, linetype = "dashed") + 
-  geom_vline(xintercept = 2010, linetype = "dashed")
+  geom_vline(xintercept = 2010, linetype = "dashed") -> g_fitted_log
 
 
-ggsave("figures/age_fitted_scenarios.png", height = 30, width = 25, units = "cm", dpi = 300)
+# ggsave("figures/age_fitted_scenarios.png", height = 30, width = 25, units = "cm", dpi = 300)
 
 # As above but actual not log
 
@@ -195,9 +195,17 @@ fitted_twoscenarios %>%
   facet_wrap(~sex) + 
   labs(x = "Year", y = "Mortality risk at age") +
   geom_vline(xintercept = 1997, linetype = "dashed") + 
-  geom_vline(xintercept = 2010, linetype = "dashed")
+  geom_vline(xintercept = 2010, linetype = "dashed") -> g_fitted_identity
 
-ggsave("figures/age_fitted_scenarios_identity.png", height = 30, width = 25, units = "cm", dpi = 300)
+# ggsave("figures/age_fitted_scenarios_identity.png", height = 30, width = 25, units = "cm", dpi = 300)
+
+# Log and identity scale on same image
+
+plot_grid(
+  g_fitted_log, g_fitted_identity, labels = c("A", "B"),
+  ncol = 1
+) 
+ggsave(filename = "figures/olderages_composite.png", width = 20, height = 20, units = "cm", dpi = 300)
 
 
 # Cumulative, actual vs projected
@@ -268,8 +276,8 @@ t_all %>%
          mrt_actual, mrt_proj, cm_mrt_actual, cm_mrt_proj
          ) -> t_all
 
-sheet_actualprojected <- createSheet(wb, sheetName = "actual_projected")
-addDataFrame(t_all, sheet_actualprojected)
+# sheet_actualprojected <- createSheet(wb, sheetName = "actual_projected")
+# addDataFrame(t_all, sheet_actualprojected)
 
 
 
