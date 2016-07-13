@@ -139,10 +139,10 @@ e65_actualproj %>%
     fill = "lightgrey", alpha = 0.4, colour = NA
   ) + 
   scale_x_continuous(limits = c(1990, 2015), breaks = seq(1990, 2015, by = 5)) + 
-  scale_y_continuous(limits = c(75, 85), breaks = seq(75, 85, by = 0.5)) + 
+  scale_y_continuous(limits = c(75, 85), breaks = seq(75, 85, by = 1.0)) + 
   theme_minimal() + 
   theme(legend.position = c(0.8,0.2)) +
-  labs(y = "Mean age of deaths for over 65s", x = "Year") -> recent_e65
+  labs(y = "Mean age of deaths\nfor over 65s", x = "Year") -> recent_e65
 
 
 
@@ -161,51 +161,26 @@ dta   %>%
   geom_point() + 
   stat_smooth(se = F, colour = "black", aes(linetype = sex)) + 
   theme_minimal() +  
-  scale_x_continuous(limits = c(1960, 2015), breaks = seq(1960, 2010, by = 5)) + 
+  scale_x_continuous(limits = c(1960, 2015), breaks = seq(1960, 2010, by = 10)) + 
   scale_y_continuous(limits = c(9, 11.5), breaks = seq(9, 11.5, .5)) + 
-  labs(y = "Average % increase in risk of death per year of age", x = "Year") + 
+  labs(y = "Average % increase", x = "Year") + 
   theme(legend.position = c(0.2, 0.2)) -> trend_in_pc_increase
 
-dta   %>% 
-  filter(place == "ew")  %>% 
-  filter(age >= 35, age <= 89)  %>% 
-  mutate(mr = deaths / population)  %>% 
-  group_by(sex, year)  %>% 
-  arrange(age)  %>% 
-  mutate(lg_mr = lag(mr))  %>% 
-  mutate(pc = mr / lg_mr)  %>% 
-  summarise(mean_pc = mean(pc, na.rm = T))  %>% 
-  ungroup()  %>%  
-  mutate(mean_pc = 100 * (mean_pc - 1))  %>%  
-  ggplot(., aes(x = year, y = mean_pc, group = sex, shape = sex)) + 
-  geom_point() + 
-  stat_smooth(se = F, colour = "black", aes(linetype = sex)) + 
-  theme_minimal() +  
-  scale_x_continuous(limits = c(1960, 2015), breaks = seq(1960, 2010, by = 5)) + 
-  scale_y_continuous(limits = c(9, 11.5), breaks = seq(9, 11.5, .5)) + 
-  labs(y = "Average % increase in risk of death per year of age", x = "Year") + 
-  theme(legend.position = c(0.2, 0.2))
+
+plot_grid(
+  long_term_gdp_trend,
+  trend_in_pc_increase,
+  recent_e65,
+  align = "v",
+  ncol = 1, 
+  labels = "AUTO"
+)
+
+
+ggsave("figures/intro_strip.png", height = 25, width = 15, units = "cm", dpi = 300)
 
 
 
-
-
-
-
-
-
-
-  
-
-
-
-  gather(key = metric, value = value, 3:7)  %>% 
-  filter(year >= 1990) %>%
-  filter(metric == "e65") %>% 
-  ggplot(., 
-         aes(x = year, group = sex, colour = sex, y = value)) + 
-  geom_point() 
-  
 
 
 
