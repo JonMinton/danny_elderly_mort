@@ -1,0 +1,18 @@
+Data
+
+
+data1550604577416261464
+source: https://www.ons.gov.uk/economy/grossdomesticproductgdp/timeseries/abmi/qna
+downloaded 13/7/2016
+
+Time series:Gross Domestic Product: chained volume measures: Seasonally adjusted £m
+
+
+
+
+data4793381934825294105
+UP population estimates (mid year)
+
+http://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/timeseries/ukpop/pop
+
+
