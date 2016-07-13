@@ -1,5 +1,6 @@
 # Analyses with ONS data only and simpler method
 
+rm(list = ls())
 
 require(pacman)
 pacman::p_load(
@@ -9,7 +10,125 @@ pacman::p_load(
   ggplot2, cowplot, scales
 )
 
+<<<<<<< HEAD
 source("scripts/extract_combined_ons.R")
+=======
+
+
+# data loading and munging ------------------------------------------------
+
+
+location <- "workbook/MF_ewuksyoadeathspopdata_tcm77-427952.xlsx"
+
+
+uk_female_deaths <- read_excel(location, sheet = "UK female deaths", skip = 1)
+uk_female_deaths <- uk_female_deaths[,1:55]
+
+uk_female_deaths <- uk_female_deaths %>% 
+  gather(key = year, value = deaths, -age) %>% 
+  mutate(sex = "female", place = "uk") %>% 
+  select(sex, place, year, age, deaths)
+
+
+uk_male_deaths <- read_excel(location, sheet = "UK male deaths", skip = 1)
+uk_male_deaths <- uk_male_deaths[,1:55]
+
+uk_male_deaths <- uk_male_deaths %>% 
+  gather(key = year, value = deaths, -age) %>% 
+  mutate(sex = "male", place = "uk") %>% 
+  select(sex, place, year, age, deaths)
+
+
+
+ew_female_deaths <- read_excel(location, sheet = "EW female deaths", skip = 1)
+ew_female_deaths <- ew_female_deaths[,1:55]
+
+ew_female_deaths <- ew_female_deaths %>% 
+  gather(key = year, value = deaths, -age) %>% 
+  mutate(sex = "female", place = "ew") %>% 
+  select(sex, place, year, age, deaths)
+
+
+ew_male_deaths <- read_excel(location, sheet = "EW male deaths", skip = 1)
+ew_male_deaths <- ew_male_deaths[,1:55]
+
+ew_male_deaths <- ew_male_deaths %>% 
+  gather(key = year, value = deaths, -age) %>% 
+  mutate(sex = "male", place = "ew") %>% 
+  select(sex, place, year, age, deaths)
+
+
+uk_female_pop <- read_excel(location, sheet = "UK female pop", skip = 1)
+uk_female_pop <- uk_female_pop[,1:55]
+
+uk_female_pop <- uk_female_pop %>% 
+  gather(key = year, value = population, -age) %>% 
+  mutate(sex = "female", place = "uk") %>% 
+  select(sex, place, year, age, population)
+
+
+uk_male_pop <- read_excel(location, sheet = "UK male pop", skip = 1)
+uk_male_pop <- uk_male_pop[,1:55]
+
+uk_male_pop <- uk_male_pop %>% 
+  gather(key = year, value = population, -age) %>% 
+  mutate(sex = "male", place = "uk") %>% 
+  select(sex, place, year, age, population)
+
+
+ew_female_pop <- read_excel(location, sheet = "EW female pops")
+ew_female_pop <- ew_female_pop[,1:55]
+
+ew_female_pop <- ew_female_pop %>% 
+  gather(key = year, value = population, -age) %>% 
+  mutate(sex = "female", place = "ew") %>% 
+  select(sex, place, year, age, population)
+
+
+ew_male_pop <- read_excel(location, sheet = "EW male pops", skip = 1)
+ew_male_pop <- ew_male_pop[,1:55]
+
+ew_male_pop <- ew_male_pop %>% 
+  gather(key = year, value = population, -age) %>% 
+  mutate(sex = "male", place = "ew") %>% 
+  select(sex, place, year, age, population)
+
+
+
+dta_population <- Reduce(bind_rows, list(ew_female_pop, ew_male_pop, uk_female_pop, uk_male_pop))
+dta_deaths <- Reduce(bind_rows, list(ew_female_deaths, ew_male_deaths, uk_female_deaths, uk_male_deaths))
+
+dta <- inner_join(dta_deaths, dta_population)
+
+dta <- dta %>% mutate(year = as.numeric(year))
+
+# Now to start to add new data from ons 
+
+ew_new_2015 <- read_csv(
+  "workbook/ukmye2015/MYEB2_detailed_components_of_change_series_EW_(0215).csv"
+)
+
+ew_new_2015  %>% 
+  select(lad2014_code, sex, age, population = population_2015, deaths = deaths_2015)  %>% 
+  group_by(sex, age)  %>% 
+  summarise(deaths = sum(deaths), population = sum(population) ) %>% 
+  mutate(year = 2015)  %>%
+  mutate(place = "ew") %>% 
+  select(sex, place, year, age, deaths, population)  %>% 
+  ungroup()  %>% 
+  mutate(sex = ifelse(sex == 1, "male", ifelse(sex == 2, "female", NA))) -> dta_2015
+
+dta <- bind_rows(dta, dta_2015)
+>>>>>>> 64a4d8b38d172ec74fe905f24fd829ccde6e69ca
+
+# Save to excel
+wb <- createWorkbook()
+sheet_rawdata <- createSheet(wb, sheetName = "combined_raw_data")
+addDataFrame(dta, sheet_rawdata)
+
+# Modelling ---------------------------------------------------------------
+
+
 
 dta  %>% 
   filter(age <= 95)  %>% 
@@ -20,6 +139,7 @@ dta  %>%
     newlab = year >= 1997 & year <= 2010, 
     recession = year %in% 2008:2009
   )  %>% 
+  mutate(year = year - min(year)) %>% 
   group_by(sex, age)  %>% 
   nest()  %>% 
   mutate(
@@ -55,21 +175,48 @@ dta  %>%
 
 
 fitted_twoscenarios %>% 
-  filter(age %in% c(0, seq(5, 95, by = 5))) %>% 
-  ggplot(., aes(x = year, group = factor(age), colour = factor(age))) + 
+  filter(age %in% seq(60, 85, by = 5)) %>% 
+  mutate(age = factor(age)) %>% 
+  ggplot(., aes(x = year + 1990, shape = age, group = age, colour = age)) + 
   geom_point(aes(y = lmr)) + 
   geom_line(aes(y = pred_nl)) + 
-  facet_wrap(~sex)
+  facet_wrap(~sex) + 
+  labs(x = "Year", y = "Base 10 log mortality risk at age") + 
+  geom_vline(xintercept = 1997, linetype = "dashed") + 
+  geom_vline(xintercept = 2010, linetype = "dashed") -> g_fitted_log
 
-ggsave("figures/age_fitted_scenarios.png", height = 30, width = 25, units = "cm", dpi = 300)
 
+# ggsave("figures/age_fitted_scenarios.png", height = 30, width = 25, units = "cm", dpi = 300)
+
+# As above but actual not log
+
+fitted_twoscenarios %>% 
+  filter(age %in% seq(60, 85, by = 5)) %>% 
+  mutate(age = factor(age)) %>% 
+  ggplot(., aes(x = year + 1990, shape = age, group = age, colour = age)) + 
+  geom_point(aes(y = 10^lmr)) + 
+  geom_line(aes(y = 10^pred_nl)) + 
+  facet_wrap(~sex) + 
+  labs(x = "Year", y = "Mortality risk at age") +
+  geom_vline(xintercept = 1997, linetype = "dashed") + 
+  geom_vline(xintercept = 2010, linetype = "dashed") -> g_fitted_identity
+
+# ggsave("figures/age_fitted_scenarios_identity.png", height = 30, width = 25, units = "cm", dpi = 300)
+
+# Log and identity scale on same image
+
+plot_grid(
+  g_fitted_log, g_fitted_identity, labels = c("A", "B"),
+  ncol = 1
+) 
+ggsave(filename = "figures/olderages_composite.png", width = 20, height = 20, units = "cm", dpi = 300)
 
 
 # Cumulative, actual vs projected
 
-plot_actualprojected <- function(YEAR, XLIMS = c(0, 95)){
+plot_actualprojected <- function(YEAR, XLIMS = c(0, 95), RETURN = "graph"){
   tmp <- fitted_twoscenarios %>% 
-    filter(year == YEAR) %>% 
+    filter(year == YEAR - 1990) %>% 
     select(sex, age, lmr, pred_nl)  
     
   
@@ -88,7 +235,10 @@ plot_actualprojected <- function(YEAR, XLIMS = c(0, 95)){
     mutate(
       cm_mrt_actual = cumsum(mrt_actual),
       cm_mrt_proj = cumsum(mrt_proj)
-    ) %>% 
+    ) -> tables 
+  
+    
+    tables %>% 
     ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
     geom_point(aes(y = cm_mrt_actual)) +
     geom_line(aes(y = cm_mrt_proj)) +
@@ -96,6 +246,8 @@ plot_actualprojected <- function(YEAR, XLIMS = c(0, 95)){
     scale_y_continuous(limits = c(0, 250000), labels = comma) +
     theme_minimal() + 
     labs(x = "Age in years", y = "Total actual and projected mortality by age", title = YEAR) -> output
+    
+    if(RETURN == "table"){output <- tables}
   return(output)
 }
 
@@ -112,10 +264,33 @@ print(g)
 
 ggsave("figures/onsonly_excess_deaths_2010_2015.png", height = 30, width = 40, dpi = 300, units = "cm")
 
+# Now to export this as a table 
+
+plot_actualprojected(2010, RETURN = "table") %>% mutate(year = 2010)-> t_10
+plot_actualprojected(2011, RETURN = "table") %>% mutate(year = 2011)-> t_11
+plot_actualprojected(2012, RETURN = "table") %>% mutate(year = 2012)-> t_12
+plot_actualprojected(2013, RETURN = "table") %>% mutate(year = 2013)-> t_13
+plot_actualprojected(2014, RETURN = "table") %>% mutate(year = 2014)-> t_14
+plot_actualprojected(2015, RETURN = "table") %>% mutate(year = 2015)-> t_15
+
+t_all <- Reduce(bind_rows, list(t_10, t_11, t_12, t_13, t_14, t_15))
+
+t_all %>% 
+  select(sex, year, age, population, lmr, pred_nl, 
+         mrt_actual, mrt_proj, cm_mrt_actual, cm_mrt_proj
+         ) -> t_all
+
+# sheet_actualprojected <- createSheet(wb, sheetName = "actual_projected")
+# addDataFrame(t_all, sheet_actualprojected)
+
+
+
 # As above, but log scale
-plot_actualprojected_log <- function(YEAR, XLIMS = c(0, 95), XFOCUS = c(0, 95), YFOCUS = c(500, 250000)){
+plot_actualprojected_log <- function(
+  YEAR, XLIMS = c(0, 95), XFOCUS = c(0, 95), YFOCUS = c(500, 250000)
+  ){
   tmp <- fitted_twoscenarios %>% 
-    filter(year == YEAR) %>% 
+    filter(year == YEAR - 1990) %>% 
     select(sex, age, lmr, pred_nl)  
   
   
@@ -173,12 +348,17 @@ print(g)
 
 ggsave("figures/ons_only_total_actual_and_projected_2010_2015_logscale_olderages.png", height = 30, width = 40, dpi = 300, units = "cm")
 
+
+
+
 draw_diffs <- function(YEAR, XLIMS = c(-12000, 20000), RETURN = "graph"){
+  tmp <- fitted_twoscenarios %>% mutate(year = year + 1990)
+  
   dta  %>% 
     filter(year == YEAR)  %>% 
     filter(place == "ew")  %>% 
     select(sex, age, population)  %>% 
-    right_join(fitted_twoscenarios) %>% 
+    right_join(tmp) %>% 
     filter(year == YEAR) %>% 
     mutate(
       mrt_actual = population * 10^lmr, 
@@ -207,12 +387,14 @@ draw_diffs <- function(YEAR, XLIMS = c(-12000, 20000), RETURN = "graph"){
 }
 
 draw_diffs_extrapolate <- function(YEAR, XLIMS = c(-12000, 20000), RETURN = "graph"){
+  tmp <- fitted_twoscenarios %>% mutate(year = year + 1990)
+  
   dta  %>% 
     filter(year == YEAR)  %>% 
     filter(place == "ew")  %>% 
     filter(age < 90) %>% 
     select(sex, age, population)  %>% 
-    right_join(fitted_twoscenarios) %>% 
+    right_join(tmp) %>% 
     filter(year == YEAR) %>% 
     mutate(
       mrt_actual = population * 10^lmr, 
@@ -313,7 +495,9 @@ d_all %>%
   mutate(dif = round(dif, 0)) %>% 
   spread(year, dif) -> spread_diffs
 
-write.xlsx(spread_diffs, "tables/tables.xlsx", "differences_by_year")
+sheet_differences <- createSheet(wb, sheetName = "differences_by_age_year")
+addDataFrame(spread_diffs, sheet_differences)
+
 
 
 # Coefficients?
@@ -322,12 +506,14 @@ write.xlsx(spread_diffs, "tables/tables.xlsx", "differences_by_year")
 # What about the coefficients?
 
 dta  %>% 
+  filter(year >= 1990) %>% 
   filter(age <= 95)  %>% 
   mutate(lmr = log(deaths / population, 10)) %>% 
   mutate(
     newlab = year >= 1997 & year <= 2010, 
     recession = year %in% 2008:2009
   )  %>% 
+  mutate(year = year - 1990) %>% 
   group_by(sex, age)  %>% 
   nest()  %>% 
   mutate(
@@ -340,14 +526,69 @@ dta  %>%
   )  %>% 
   mutate(m2 = map(model, tidy))  %>% 
   select(-data, -model)   %>% 
-  unnest()  %>% 
+  unnest() -> all_coeffs
+
+
+
+sheet_coeffs <- createSheet(wb, sheetName = "coefficients")
+addDataFrame(all_coeffs, sheet_coeffs)
+
+  all_coeffs %>%   
   mutate(est_lwr = estimate - 2 * std.error, est_upr = estimate + 2 * std.error)  %>% 
   ggplot(., aes(x = age)) + 
   facet_grid(term ~ sex, scales = "free_y") + 
   geom_ribbon(aes(ymin = est_lwr, ymax = est_upr), fill = "lightgrey") + 
   geom_line(aes(y = estimate)) + 
-  geom_hline(yintercept = 0)
+  geom_hline(yintercept = 0) +
+  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+  geom_vline(xintercept = 65, linetype = "dashed")
+  
 
 
 ggsave("figures/ons_only_coefficients_with_age.png", height =30, width = 20, dpi = 300, units = "cm")
 
+
+# Summary statistics only?
+dta  %>% 
+  filter(year >= 1990) %>% 
+  filter(age <= 95)  %>% 
+  mutate(lmr = log(deaths / population, 10)) %>% 
+  mutate(
+    newlab = year >= 1997 & year <= 2010, 
+    recession = year %in% 2008:2009
+  )  %>% 
+  mutate(year = year - 1990) %>% 
+  group_by(sex, age)  %>% 
+  nest()  %>% 
+  mutate(
+    model = map(
+      data, 
+      function(x) { 
+        out <- lm(lmr ~ year * (newlab + recession), data = x ); 
+        return(out)}
+    )
+  )  %>% 
+  mutate(m2 = map(model, glance))  %>% 
+  select(-data, -model)   %>% 
+  unnest() -> all_summaries
+
+sheet_summaries <- createSheet(wb, sheetName = "model_summaries")
+addDataFrame(all_summaries, sheet_summaries)
+
+all_summaries %>% 
+  ggplot(., aes(x = age, y = r.squared, group = sex, shape = sex, colour = sex)) + 
+  geom_point() + 
+  stat_smooth(aes(linetype = sex), method = "loess", span = 0.25, se = F) + 
+  scale_x_continuous(limits = c(0, 95), breaks = c(0, seq(10, 90, by = 10))) + 
+  geom_vline(xintercept = 65, linetype = "dashed") + 
+  geom_hline(yintercept =1 ) + 
+  labs(x = "Age in years", y = "R-squared of model fit") + 
+  scale_y_continuous(limits = c(0, 1), breaks = c(0, seq(0.1, 1, by = 0.1))) + 
+  theme_minimal()
+
+
+
+ggsave("figures/regressions_by_age.png", height =15, width = 15, dpi = 300, units = "cm")
+
+
+saveWorkbook(wb, "tables/all_supplementary_results.xlsx")
