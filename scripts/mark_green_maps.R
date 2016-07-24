@@ -149,19 +149,20 @@ pop_data %>%
 # Redo cartograms as projection is very weird 
 # Getting data from detailed components within analysis tool mid 2014 uk
 
-components <- read_excel(
-  path = "workbook/analysistoolmid2014uk/Analysis Tool mid-2014 UK.xlsx", 
-  sheet = "Detailed Components EW"
-)
+# components <- read_excel(
+#   path = "workbook/analysistoolmid2014uk/Analysis Tool mid-2014 UK.xlsx", 
+#   sheet = "Detailed Components EW"
+# )
+components <- read_csv("workbook/analysistoolmid2014uk/detailed_components_ew.csv")
 
 # From this want the country ode and Estimated Population Pyramid 2014
 # 
-# components %>% 
-#   .[,c(7, 33)] %>% 
-#   rename(code = `LA Code`, population = `Estimated Population 2014`) %>% 
-#   group_by(code) %>% 
-#   summarise(population = sum(population, na.rm = T)) %>% 
-#   append_data(lad_shp, ., key.shp = "CODE", key.data = "code") -> shp_pop_merged
+components %>%
+  .[,c(7, 33)] %>%
+  rename(code = `LA Code`, population = `Estimated Population 2014`) %>%
+  group_by(code) %>%
+  summarise(population = sum(population, na.rm = T)) %>% 
+  append_data(lad_shp, ., key.shp = "CODE", key.data = "code") -> shp_pop_merged
 # 
 # write_shape(shp_pop_merged, file = "shapefiles/population_2014")
 # # First save these 
