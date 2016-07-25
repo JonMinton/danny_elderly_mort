@@ -16,3 +16,8 @@ UP population estimates (mid year)
 http://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/timeseries/ukpop/pop
 
 
+
+Message from Nik Lomax:
+The 2015 MY release has a table which disaggregates all components (including deaths) up to age 90+ which will hopefully be consistent with your existing data. In the zip folder “Mid-2015” is a file “MYEB2_detailed_components…etc.”:
+https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
+

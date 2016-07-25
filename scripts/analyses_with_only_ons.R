@@ -75,7 +75,7 @@ fitted_twoscenarios %>%
   geom_vline(xintercept = 1997, linetype = "dashed") + 
   geom_vline(xintercept = 2010, linetype = "dashed") -> g_fitted_log
 
-
+print(g_fitted_log)
 # ggsave("figures/age_fitted_scenarios.png", height = 30, width = 25, units = "cm", dpi = 300)
 
 # As above but actual not log
@@ -91,6 +91,7 @@ fitted_twoscenarios %>%
   geom_vline(xintercept = 1997, linetype = "dashed") + 
   geom_vline(xintercept = 2010, linetype = "dashed") -> g_fitted_identity
 
+print(g_fitted_identity)
 # ggsave("figures/age_fitted_scenarios_identity.png", height = 30, width = 25, units = "cm", dpi = 300)
 
 # Log and identity scale on same image
