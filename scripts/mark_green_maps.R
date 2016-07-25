@@ -260,6 +260,9 @@ theme_clean <- function(base_size = 12) {
 new_cart_fort  %>% ggplot(., aes(x = long, y = lat, group = id)) + 
   geom_path() + theme_clean()
 
+ggsave(filename = "maps/cartogram_border.png", height = 15, width = 12, units = "cm", dpi = 300)
+
+
 # To do a choropleth
 pop_data %>% 
   filter(year == 2015, sex == "male") %>% # vary sex
@@ -269,4 +272,5 @@ pop_data %>%
   ggplot(., aes(x = long, y = lat, group = id, fill = ratio)) + 
   geom_polygon() + theme_clean()
 
+ggsave(filename = "maps/cartogram_choropleth.png", height = 15, width = 12, units = "cm", dpi = 300)
 
