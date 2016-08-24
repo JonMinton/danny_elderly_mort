@@ -84,9 +84,15 @@ dta <- dta %>% mutate(year = as.numeric(year))
 
 # Now to start to add new data from ons 
 
+# ew_new_2015 <- read_csv(
+#   "workbook/ukmye2015/MYEB2_detailed_components_of_change_series_EW_(0215).csv"
+# )
+
+# Using table from Nik Lomax
 ew_new_2015 <- read_csv(
-  "workbook/ukmye2015/MYEB2_detailed_components_of_change_series_EW_(0215).csv"
+  "data/MYEB2_detailed_components_of_change_series_EW_(0215).csv"
 )
+
 
 ew_new_2015  %>% 
   select(lad2014_code, sex, age, population = population_2015, deaths = deaths_2015)  %>% 

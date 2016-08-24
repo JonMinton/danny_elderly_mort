@@ -4,10 +4,12 @@ rm(list = ls())
 
 require(pacman)
 pacman::p_load(
+  Zelig,
   readr, readxl, xlsx,
   purrr, tidyr, dplyr, 
   broom,
   ggplot2, cowplot, scales
+
 )
 
 
@@ -17,6 +19,64 @@ source("scripts/extract_combined_ons.R")
 
 
 # Modelling ---------------------------------------------------------------
+
+# What I want to do: for each variable in each model, produce 10 000 draws of distributions 
+
+# First, get this right for one model
+zelig_ops <- function(dta){
+  dta <- dta %>% mutate(newlab = as.numeric(newlab), recession = as.numeric(recession))
+  dta <- data.frame(dta)
+  z_base <- zls$new()
+  z_base$zelig(lmr ~ year * (newlab + recession), data = dta)
+  z_base$setx1(newlab = 1)
+  z_base$sim(num = 10000)
+  z_base
+}
+
+dta  %>% 
+  filter(age <= 95)  %>% 
+  filter(year >= 1990)  %>% 
+  filter(place == "ew") %>% 
+  mutate(lmr = log(deaths/population, 10)) %>% 
+  mutate(
+    newlab = year >= 1997 & year <= 2010, 
+    recession = year %in% 2008:2009
+  )  %>% 
+  mutate(year = year - min(year)) %>% 
+  group_by(sex, age)  %>% 
+  nest()  %>%
+  mutate(model_zel = map(data, zelig_ops)) -> tmp
+
+  mutate(
+    model_nl = map(
+      data, 
+      function(x) { 
+        out <- lm(lmr ~ year * (newlab + recession), data = x ); 
+        return(out)}
+    )
+  ) %>% 
+  mutate(coef_draws = map(
+    model_nl,
+    ~ mvrnorm(n= 10000, mu = coef(.), Sigma = vcov(.))
+    )
+  ) %>% .[["data"]] %>% .[[1]]
+%>% 
+  mutate(
+    pred_vec 
+    
+  )
+
+%>% .[["coef_draws"]] %>% .[[60]] -> some_coeffs
+
+# A predictor vector 
+
+pred_vec <- t(c(
+  1, 0, 0, 0, 0, 0
+))
+
+pred_var %*% some_coeffs
+
+
 
 
 
@@ -75,7 +135,7 @@ fitted_twoscenarios %>%
   geom_vline(xintercept = 1997, linetype = "dashed") + 
   geom_vline(xintercept = 2010, linetype = "dashed") -> g_fitted_log
 
-
+print(g_fitted_log)
 # ggsave("figures/age_fitted_scenarios.png", height = 30, width = 25, units = "cm", dpi = 300)
 
 # As above but actual not log
@@ -91,6 +151,7 @@ fitted_twoscenarios %>%
   geom_vline(xintercept = 1997, linetype = "dashed") + 
   geom_vline(xintercept = 2010, linetype = "dashed") -> g_fitted_identity
 
+print(g_fitted_identity)
 # ggsave("figures/age_fitted_scenarios_identity.png", height = 30, width = 25, units = "cm", dpi = 300)
 
 # Log and identity scale on same image
