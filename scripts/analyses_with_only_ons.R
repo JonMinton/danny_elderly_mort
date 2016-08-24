@@ -28,6 +28,7 @@ zelig_ops <- function(dta){
   dta <- data.frame(dta)
   z_base <- zls$new()
   z_base$zelig(lmr ~ year * (newlab + recession), data = dta)
+  z_base$setx()
   z_base$setx1(newlab = 1)
   z_base$sim(num = 10000)
   z_base
@@ -45,7 +46,11 @@ dta  %>%
   mutate(year = year - min(year)) %>% 
   group_by(sex, age)  %>% 
   nest()  %>%
-  mutate(model_zel = map(data, zelig_ops)) -> tmp
+  mutate(
+    model_zel = map(data, zelig_ops),
+    ev_basic = map(model_zel, ~.[[1]]$sim.out$x$ev),
+    ev_nl = map(model_zel, ~.[[1]]$sim.out$x1$ev)
+    ) -> tmp
 
   mutate(
     model_nl = map(
