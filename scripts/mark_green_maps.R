@@ -12,6 +12,7 @@ pacman::p_load(
   readr,  readxl,
   tidyr, dplyr,
   ggplot2, cowplot,
+  maptools,
   tmap
 )
 
