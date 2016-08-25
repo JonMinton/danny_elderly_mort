@@ -23,15 +23,36 @@ source("scripts/extract_combined_ons.R")
 # What I want to do: for each variable in each model, produce 10 000 draws of distributions 
 
 # First, get this right for one model
-zelig_ops <- function(dta){
+run_zelig <- function(dta){
   dta <- dta %>% mutate(newlab = as.numeric(newlab), recession = as.numeric(recession))
   dta <- data.frame(dta)
   z_base <- zls$new()
   z_base$zelig(lmr ~ year * (newlab + recession), data = dta)
-  z_base$setx()
-  z_base$setx1(newlab = 1)
-  z_base$sim(num = 10000)
   z_base
+}
+
+run_sims <- function(zel, years = 1990:2015){
+  listblock <- vector(mode = "list", length = length(years))
+  names(listblock) <- years
+  for (pred_year in years ){
+    zel$setx(year = pred_year - 1990)
+    zel$setx1(year = pred_year - 1990, newlab = 1, recession = 0)
+    zel$sim(n = 1000)
+    inner_out <- data.frame(
+      year = pred_year,
+      base =  zel$sim.out$x$ev[[1]],
+      counter = zel$sim.out$x1$ev[[1]]
+    )
+    names(inner_out) <- c("year", "base", "counter")
+    inner_out <- as_data_frame(inner_out)
+    
+    listblock[[as.character(pred_year)]] <- inner_out
+    
+    #predictions[[as.character(pred_year)]] <- zel$get
+    #$sim.out$x$ev
+  }
+  outer_out <- map_df(listblock, bind_rows)
+  outer_out
 }
 
 dta  %>% 
@@ -47,85 +68,39 @@ dta  %>%
   group_by(sex, age)  %>% 
   nest()  %>%
   mutate(
-    model_zel = map(data, zelig_ops),
-    ev_basic = map(model_zel, ~.[[1]]$sim.out$x$ev),
-    ev_nl = map(model_zel, ~.[[1]]$sim.out$x1$ev)
+    zel_objs = map(data, run_zelig),
+    zel_evs  = map(zel_objs, run_sims )
     ) -> tmp
 
+
+tmp %>% select(sex, age, data) %>% unnest() %>% 
+  mutate(year = year + 1990) -> orig_dta
+
+tmp %>% select(sex, age, zel_evs) %>% unnest() -> pred_df
+
+orig_dta %>% 
+  select(sex, age, year, deaths_actual = deaths, population, actual_lmr = lmr) %>% 
+  right_join(pred_df) %>% 
   mutate(
-    model_nl = map(
-      data, 
-      function(x) { 
-        out <- lm(lmr ~ year * (newlab + recession), data = x ); 
-        return(out)}
-    )
-  ) %>% 
-  mutate(coef_draws = map(
-    model_nl,
-    ~ mvrnorm(n= 10000, mu = coef(.), Sigma = vcov(.))
-    )
-  ) %>% .[["data"]] %>% .[[1]]
-%>% 
-  mutate(
-    pred_vec 
-    
-  )
-
-%>% .[["coef_draws"]] %>% .[[60]] -> some_coeffs
-
-# A predictor vector 
-
-pred_vec <- t(c(
-  1, 0, 0, 0, 0, 0
-))
-
-pred_var %*% some_coeffs
+    deaths_base = population * 10^base, 
+    deaths_counter = population * 10^counter,
+    deaths_excess = deaths_counter - deaths_actual
+    ) -> simulated_estimates
 
 
+simulated_estimates %>% 
+  filter(age <= 95) %>% 
+  group_by(sex, age, year) %>% 
+  summarise(
+    deaths_500 = quantile(deaths_excess, 0.500, na.rm = T)
+    ) %>% 
+  group_by(sex, year) %>% 
+  arrange(age) %>% 
+  mutate(cumulative_excess = cumsum(deaths_500)) %>% 
 
-
-
-dta  %>% 
-  filter(age <= 95)  %>% 
-  filter(year >= 1990)  %>% 
-  filter(place == "ew") %>% 
-  mutate(lmr = log(deaths/population, 10)) %>% 
-  mutate(
-    newlab = year >= 1997 & year <= 2010, 
-    recession = year %in% 2008:2009
-  )  %>% 
-  mutate(year = year - min(year)) %>% 
-  group_by(sex, age)  %>% 
-  nest()  %>% 
-  mutate(
-    model_nl = map(
-      data, 
-      function(x) { 
-        out <- lm(lmr ~ year * (newlab + recession), data = x ); 
-        return(out)}
-    )
-  ) %>% 
-  mutate(
-    dta2 = map(
-      data, 
-      function(input) {
-        output <- input 
-        output$newlab <- TRUE
-        return(output)
-      }
-    )
-  )  %>% 
-  mutate(
-    pred_nl = map2(
-      model_nl, dta2, 
-      function(x, y){
-        out <- predict(x, newdata = y, type = "response")
-        return(out)
-      })
-  ) %>% 
-  select(sex, age, data, pred_nl) %>% 
-  unnest() %>% 
-  select(sex, year, age, lmr, pred_nl) -> fitted_twoscenarios 
+  ggplot(., aes(x = age, group = sex)) + 
+  geom_line(aes(y = cumulative_excess, linetype =  sex)) + 
+  facet_wrap(~ year)
 
 
 
