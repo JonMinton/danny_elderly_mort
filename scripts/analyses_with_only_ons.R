@@ -4,12 +4,11 @@ rm(list = ls())
 
 require(pacman)
 pacman::p_load(
-  Zelig,
+
   readr, readxl, xlsx,
   purrr, tidyr, dplyr, 
   broom,
   ggplot2, cowplot, scales
-
 )
 
 
@@ -23,36 +22,46 @@ source("scripts/extract_combined_ons.R")
 # What I want to do: for each variable in each model, produce 10 000 draws of distributions 
 
 # First, get this right for one model
-run_zelig <- function(dta){
-  dta <- dta %>% mutate(newlab = as.numeric(newlab), recession = as.numeric(recession))
-  dta <- data.frame(dta)
-  z_base <- zls$new()
-  z_base$zelig(lmr ~ year * (newlab + recession), data = dta)
-  z_base
+run_regression <- function(dta){
+  lm(lmr ~ year * (newlab + recession), data = dta)
 }
 
-run_sims <- function(zel, years = 1990:2015){
-  listblock <- vector(mode = "list", length = length(years))
-  names(listblock) <- years
-  for (pred_year in years ){
-    zel$setx(year = pred_year - 1990)
-    zel$setx1(year = pred_year - 1990, newlab = 1, recession = 0)
-    zel$sim(n = 1000)
-    inner_out <- data.frame(
-      year = pred_year,
-      base =  zel$sim.out$x$ev[[1]],
-      counter = zel$sim.out$x1$ev[[1]]
-    )
-    names(inner_out) <- c("year", "base", "counter")
-    inner_out <- as_data_frame(inner_out)
-    
-    listblock[[as.character(pred_year)]] <- inner_out
-    
-    #predictions[[as.character(pred_year)]] <- zel$get
-    #$sim.out$x$ev
+extract_coeffs <- function(mdl){
+  mdl %>% coefficients() 
+}
+
+extract_vcov <- function(mdl){
+  mdl %>% vcov()
+}
+
+sim_betas <- function(cfs, vcv, n_sim = 1000){
+  MASS::mvrnorm(n = n_sim, mu = cfs, Sigma = vcv)
+}
+
+vectorise_predictors <- function(dta, set_nl = F){
+  # The output should be a list of vectors, one for each year
+  out <- list()
+  for (i in 1:nrow(dta)){
+    yr <- as.numeric(dta[i, "year"])
+    nl <- ifelse(set_nl, 1, as.numeric(dta[i, "newlab"]))
+    rc <- as.numeric(dta[i, "recession"])
+    this_vec <- c(1, yr, nl, rc, yr * nl, yr * rc)
+    out[[i]] <- this_vec
   }
-  outer_out <- map_df(listblock, bind_rows)
-  outer_out
+  out  
+}
+
+make_deterministic_lmrs <- function(x, B){
+  map_dbl(x, function(v) v %*% B)
+}
+
+make_stochastic_lmrs <- function(x, B){
+  lapply(x, function(v) {apply(B, 1, function(xx, vec=v) vec %*% xx)}) 
+}
+
+predict_deaths <- function(dta, lmrs){
+  pops <- map(dta[["population"]], ~.)
+  map2(pops, lmrs, .f = function(x, y) x * 10 ^ y)
 }
 
 dta  %>% 
@@ -68,48 +77,30 @@ dta  %>%
   group_by(sex, age)  %>% 
   nest()  %>%
   mutate(
-    zel_objs = map(data, run_zelig),
-    zel_evs  = map(zel_objs, run_sims )
-    ) -> tmp
+    mdl = map(data, run_regression),
+    coeffs  = map(mdl, extract_coeffs),
+    vcv = map(mdl, extract_vcov),
+    betas = map2(coeffs, vcv, sim_betas),
+    prd_vec = map(data, vectorise_predictors),
+    prd_vec_nl = map(data, vectorise_predictors, set_nl = T),
+    det_lmr_nl = map2(prd_vec_nl, coeffs, make_deterministic_lmrs),
+    sim_lmrs = map2(prd_vec, betas, make_stochastic_lmrs),
+    sim_lmrs_nl = map2(prd_vec_nl, betas, make_stochastic_lmrs),
+    sim_deaths = map2(data, sim_lmrs, predict_deaths),
+    sim_deaths_nl = map2(data, sim_lmrs_nl, predict_deaths)
+    ) -> model_outputs
 
 
-tmp %>% select(sex, age, data) %>% unnest() %>% 
-  mutate(year = year + 1990) -> orig_dta
-
-tmp %>% select(sex, age, zel_evs) %>% unnest() -> pred_df
-
-orig_dta %>% 
-  select(sex, age, year, deaths_actual = deaths, population, actual_lmr = lmr) %>% 
-  right_join(pred_df) %>% 
-  mutate(
-    deaths_base = population * 10^base, 
-    deaths_counter = population * 10^counter,
-    deaths_excess = deaths_counter - deaths_actual
-    ) -> simulated_estimates
-
-
-simulated_estimates %>% 
-  filter(age <= 95) %>% 
-  group_by(sex, age, year) %>% 
-  summarise(
-    deaths_500 = quantile(deaths_excess, 0.500, na.rm = T)
-    ) %>% 
-  group_by(sex, year) %>% 
-  arrange(age) %>% 
-  mutate(cumulative_excess = cumsum(deaths_500)) %>% 
-
-  ggplot(., aes(x = age, group = sex)) + 
-  geom_line(aes(y = cumulative_excess, linetype =  sex)) + 
-  facet_wrap(~ year)
-
-
+model_outputs  %>% 
+  select(sex, age, data, det_lmr_nl)  %>% 
+  unnest() -> fitted_twoscenarios
 
 fitted_twoscenarios %>% 
   filter(age %in% seq(60, 85, by = 5)) %>% 
   mutate(age = factor(age)) %>% 
   ggplot(., aes(x = year + 1990, shape = age, group = age, colour = age)) + 
   geom_point(aes(y = lmr)) + 
-  geom_line(aes(y = pred_nl)) + 
+  geom_line(aes(y = det_lmr_nl)) + 
   facet_wrap(~sex) + 
   labs(x = "Year", y = "Base 10 log mortality risk at age") + 
   geom_vline(xintercept = 1997, linetype = "dashed") + 
@@ -125,7 +116,7 @@ fitted_twoscenarios %>%
   mutate(age = factor(age)) %>% 
   ggplot(., aes(x = year + 1990, shape = age, group = age, colour = age)) + 
   geom_point(aes(y = 10^lmr)) + 
-  geom_line(aes(y = 10^pred_nl)) + 
+  geom_line(aes(y = 10^det_lmr_nl)) + 
   facet_wrap(~sex) + 
   labs(x = "Year", y = "Mortality risk at age") +
   geom_vline(xintercept = 1997, linetype = "dashed") + 
@@ -141,6 +132,29 @@ plot_grid(
   ncol = 1
 ) 
 ggsave(filename = "figures/olderages_composite.png", width = 20, height = 20, units = "cm", dpi = 300)
+
+
+# As above, but with credible intervals 
+
+model_outputs %>% 
+  select(sex, age, data, sim_lmrs_nl) -> tmp
+
+extract_upperlower <- function(x, probs = c(0.025, 0.975)){
+  map(x, quantile, probs)
+}
+
+tmp %>% 
+  mutate(
+    ul_bounds = map(sim_lmrs_nl, extract_upperlower),
+    ulb2 = map(ul_bounds, ~.)
+  ) -> tmp2
+
+    lb = map(ul_bounds, ~.[1][[1]]),
+    ub = map(ul_bounds, ~.[2][[1]])
+    ) %>% 
+  .[["lb"]]
+
+
 
 
 # Cumulative, actual vs projected
