@@ -425,59 +425,58 @@ print(g)
 
 ggsave("figures/ons_only_total_excess_deaths_2010_2015_upto16k_extrapolated.png", height = 30, width = 40, dpi = 300, units = "cm")
 
-# For the numbers themselves 
 
-draw_diffs(2010, RETURN = "table") -> d_10
-draw_diffs(2011, RETURN = "table") -> d_11
-draw_diffs(2012, RETURN = "table") -> d_12
-draw_diffs(2013, RETURN = "table") -> d_13
-draw_diffs(2014, RETURN = "table") -> d_14
-draw_diffs_extrapolate(2015, RETURN = "table") -> d_15
 
-d_all <- Reduce(bind_rows, list(d_10, d_11, d_12, d_13, d_14, d_15))
+# Estimates of cumulative differences by age 89 years 
 
-d_all %>% 
-  filter(!is.na(dif)) %>% 
-  mutate(dif = round(dif, 0)) %>% 
-  spread(year, dif) -> spread_diffs
+base_deaths <-  model_outputs  %>% 
+  select(sex, age, data) %>% 
+  unnest() %>% 
+  select(sex, age, year, deaths)
 
-sheet_differences <- createSheet(wb, sheetName = "differences_by_age_year")
-addDataFrame(spread_diffs, sheet_differences)
+#sim_deaths_nl_flat <- model_outputs %>% .[["sim_deaths_nl"]] %>% flatten()
+
+# Example - extract one death for one particular age and year 
+
+
+make_into_df <- function(lst){
+  I <- length(lst)
+  df <- data.frame(i = NA, j = NA, k = NA, sim = NA)
+  for (i in 1:I){
+    J <- length(lst %>% .[[i]])
+    for (j in 1:J){
+      K <- length(lst %>% .[[i]] %>% .[[j]])
+      for (k in 1:K){
+        sim <- lst %>% .[[i]] %>% .[[j]] %>% .[[k]]
+        df <- bind_rows(df, data.frame(i = i, j = j, k = k, sim = sim))
+      }
+    }
+  }
+  df
+}
+
+# # For the numbers themselves 
+# 
+# draw_diffs(2010, return_table = T) -> d_10
+# draw_diffs(2011, return_table = T) -> d_11
+# draw_diffs(2012, return_table = T) -> d_12
+# draw_diffs(2013, return_table = T) -> d_13
+# draw_diffs(2014, return_table = T) -> d_14
+# draw_diffs_extrapolate(2015, return_table = T) -> d_15
+# 
+# d_all <- Reduce(bind_rows, list(d_10, d_11, d_12, d_13, d_14, d_15))
+
+# d_all %>% 
+#   filter(!is.na(dif)) %>% 
+#   mutate(dif = round(dif, 0)) %>% 
+#   spread(year, dif) -> spread_diffs
+# 
+# sheet_differences <- createSheet(wb, sheetName = "differences_by_age_year")
+# addDataFrame(spread_diffs, sheet_differences)
 
 
 
 # Coefficients?
-
-
-# What about the coefficients?
-
-dta  %>% 
-  filter(year >= 1990) %>% 
-  filter(age <= 95)  %>% 
-  mutate(lmr = log(deaths / population, 10)) %>% 
-  mutate(
-    newlab = year >= 1997 & year <= 2010, 
-    recession = year %in% 2008:2009
-  )  %>% 
-  mutate(year = year - 1990) %>% 
-  group_by(sex, age)  %>% 
-  nest()  %>% 
-  mutate(
-    model = map(
-      data, 
-      function(x) { 
-        out <- lm(lmr ~ year * (newlab + recession), data = x ); 
-        return(out)}
-    )
-  )  %>% 
-  mutate(m2 = map(model, tidy))  %>% 
-  select(-data, -model)   %>% 
-  unnest() -> all_coeffs
-
-
-
-sheet_coeffs <- createSheet(wb, sheetName = "coefficients")
-addDataFrame(all_coeffs, sheet_coeffs)
 
   model_outputs %>% 
     select(sex, age, mdl) %>% 
@@ -508,52 +507,5 @@ addDataFrame(all_coeffs, sheet_coeffs)
     scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
     geom_vline(xintercept = 65, linetype = "dashed")
   
-
-
 ggsave("figures/ons_only_coefficients_with_age.png", height =30, width = 20, dpi = 300, units = "cm")
 
-
-# Summary statistics only?
-dta  %>% 
-  filter(year >= 1990) %>% 
-  filter(age <= 95)  %>% 
-  mutate(lmr = log(deaths / population, 10)) %>% 
-  mutate(
-    newlab = year >= 1997 & year <= 2010, 
-    recession = year %in% 2008:2009
-  )  %>% 
-  mutate(year = year - 1990) %>% 
-  group_by(sex, age)  %>% 
-  nest()  %>% 
-  mutate(
-    model = map(
-      data, 
-      function(x) { 
-        out <- lm(lmr ~ year * (newlab + recession), data = x ); 
-        return(out)}
-    )
-  )  %>% 
-  mutate(m2 = map(model, glance))  %>% 
-  select(-data, -model)   %>% 
-  unnest() -> all_summaries
-
-sheet_summaries <- createSheet(wb, sheetName = "model_summaries")
-addDataFrame(all_summaries, sheet_summaries)
-
-all_summaries %>% 
-  ggplot(., aes(x = age, y = r.squared, group = sex, shape = sex, colour = sex)) + 
-  geom_point() + 
-  stat_smooth(aes(linetype = sex), method = "loess", span = 0.25, se = F) + 
-  scale_x_continuous(limits = c(0, 95), breaks = c(0, seq(10, 90, by = 10))) + 
-  geom_vline(xintercept = 65, linetype = "dashed") + 
-  geom_hline(yintercept =1 ) + 
-  labs(x = "Age in years", y = "R-squared of model fit") + 
-  scale_y_continuous(limits = c(0, 1), breaks = c(0, seq(0.1, 1, by = 0.1))) + 
-  theme_minimal()
-
-
-
-ggsave("figures/regressions_by_age.png", height =15, width = 15, dpi = 300, units = "cm")
-
-
-saveWorkbook(wb, "tables/all_supplementary_results.xlsx")
