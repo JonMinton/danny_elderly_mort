@@ -137,23 +137,37 @@ ggsave(filename = "figures/olderages_composite.png", width = 20, height = 20, un
 # As above, but with credible intervals 
 
 model_outputs %>% 
-  select(sex, age, data, sim_lmrs_nl) -> tmp
+  select(sex, age, data, sim_lmrs_nl) %>% 
+  mutate(
+    ul_lwr = map(sim_lmrs_nl, function(x) {map_dbl(x, quantile, probs = 0.025)}),
+    ul_upr = map(sim_lmrs_nl, function(x) {map_dbl(x, quantile, probs = 0.975)})
+  ) %>% 
+  select(sex, age, data, ul_lwr, ul_upr)  %>% 
+  unnest() -> mod_bands 
 
-extract_upperlower <- function(x, probs = c(0.025, 0.975)){
-  map(x, quantile, probs)
+make_valband <- function(ages){
+  mod_bands %>% 
+    filter(age %in% ages) %>% 
+    mutate(age = factor(age)) %>% 
+    ggplot(., aes(x = year + 1990, group = age)) + 
+    geom_ribbon(aes(ymin = ul_lwr, ymax = ul_upr), alpha = 0.2) + 
+    geom_point(aes(y = lmr, colour = age, shape = age)) + 
+    facet_wrap(~sex) + 
+    labs(x = "Year", y = "Base 10 log mortality risk at age") + 
+    geom_vline(xintercept = 1997, linetype = "dashed") + 
+    geom_vline(xintercept = 2010, linetype = "dashed")   
 }
 
-tmp %>% 
-  mutate(
-    ul_bounds = map(sim_lmrs_nl, extract_upperlower),
-    ulb2 = map(ul_bounds, ~.)
-  ) -> tmp2
+make_valband(seq(0, 25, by = 5))
+make_valband(seq(30, 55, by = 5))
+make_valband(seq(60, 85, by = 5))
 
-    lb = map(ul_bounds, ~.[1][[1]]),
-    ub = map(ul_bounds, ~.[2][[1]])
-    ) %>% 
-  .[["lb"]]
-
+plot_grid(
+  make_valband(seq(0, 25, by = 5)),
+  make_valband(seq(30, 55, by = 5)),
+  make_valband(seq(60, 85, by = 5)),
+  nrow = 3
+)
 
 
 
@@ -162,7 +176,7 @@ tmp %>%
 plot_actualprojected <- function(YEAR, XLIMS = c(0, 95), RETURN = "graph"){
   tmp <- fitted_twoscenarios %>% 
     filter(year == YEAR - 1990) %>% 
-    select(sex, age, lmr, pred_nl)  
+    select(sex, age, lmr, det_lmr_nl)  
     
   
   dta  %>% 
@@ -296,76 +310,66 @@ ggsave("figures/ons_only_total_actual_and_projected_2010_2015_logscale_olderages
 
 
 
-draw_diffs <- function(YEAR, XLIMS = c(-12000, 20000), RETURN = "graph"){
-  tmp <- fitted_twoscenarios %>% mutate(year = year + 1990)
-  
+draw_diffs <- function(dta, YEAR, XLIMS = c(-12000, 20000), return_table = F){
   dta  %>% 
-    filter(year == YEAR)  %>% 
-    filter(place == "ew")  %>% 
-    select(sex, age, population)  %>% 
-    right_join(tmp) %>% 
+    mutate(year = year + 1990)  %>% 
     filter(year == YEAR) %>% 
+    mutate(deaths_counterfactual = population * 10 ^ det_lmr_nl)  %>% 
+    group_by(sex)  %>% 
+    arrange(age)  %>% 
     mutate(
-      mrt_actual = population * 10^lmr, 
-      mrt_proj = population * 10^pred_nl
-    ) %>% 
-    group_by(sex) %>% 
-    arrange(age) %>% 
-    mutate(
-      cm_mrt_actual = cumsum(mrt_actual),
-      cm_mrt_proj = cumsum(mrt_proj)
-    ) %>%
-    mutate(dif = cm_mrt_actual - cm_mrt_proj) %>% 
-    select(sex, year, age, dif) -> simple_diffs 
-    simple_diffs %>% 
-    ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
-    geom_line(aes(y = dif)) +
-    scale_x_continuous(limits = c(0, 95), breaks = c(0, seq(10, 90, by = 10))) + 
-    scale_y_continuous(limits = XLIMS, breaks = seq(XLIMS[1], XLIMS[2], by = 2000), labels = comma) +
-    geom_hline(yintercept = 0) +
-    geom_vline(xintercept = 65, linetype = "dashed") + 
-    theme_minimal() + 
-    labs(x = "Age in years", y = "Total additional deaths by\n age on x axis", title = YEAR) -> output
+      cm_mrt_actual = cumsum(deaths), 
+      cm_mrt_counter = cumsum(deaths_counterfactual),
+      dif = cm_mrt_actual - cm_mrt_counter
+      ) -> diffs_estimates
   
-  if (RETURN == "table") {output <- simple_diffs}
-  return(output)
+    if (return_table) {return(diffs_estimates)}
+
+    diffs_estimates %>%     
+      ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
+      geom_line(aes(y = dif)) +
+      scale_x_continuous(limits = c(0, 95), breaks = c(0, seq(10, 90, by = 10))) + 
+      scale_y_continuous(limits = XLIMS, breaks = seq(XLIMS[1], XLIMS[2], by = 2000), labels = comma) +
+      geom_hline(yintercept = 0) +
+      geom_vline(xintercept = 65, linetype = "dashed") + 
+      theme_minimal() + 
+      labs(x = "Age in years", y = "Total additional deaths by\n age on x axis", title = YEAR)
 }
 
-draw_diffs_extrapolate <- function(YEAR, XLIMS = c(-12000, 20000), RETURN = "graph"){
-  tmp <- fitted_twoscenarios %>% mutate(year = year + 1990)
-  
+draw_diffs(fitted_twoscenarios, 2010)
+draw_diffs(fitted_twoscenarios, 2011)
+draw_diffs(fitted_twoscenarios, 2012)
+draw_diffs(fitted_twoscenarios, 2013)
+draw_diffs(fitted_twoscenarios, 2014)
+draw_diffs(fitted_twoscenarios, 2015)
+
+
+draw_diffs_extrapolate <- function(dta, YEAR, XLIMS = c(-12000, 20000), return_table = F){
   dta  %>% 
-    filter(year == YEAR)  %>% 
-    filter(place == "ew")  %>% 
-    filter(age < 90) %>% 
-    select(sex, age, population)  %>% 
-    right_join(tmp) %>% 
+    mutate(year = year + 1990)  %>% 
     filter(year == YEAR) %>% 
+    mutate(deaths_counterfactual = population * 10 ^ det_lmr_nl)  %>% 
+    group_by(sex)  %>% 
+    arrange(age)  %>% 
     mutate(
-      mrt_actual = population * 10^lmr, 
-      mrt_proj = population * 10^pred_nl
-    ) %>% 
-    group_by(sex) %>% 
-    arrange(age) %>% 
-    mutate(
-      cm_mrt_actual = cumsum(mrt_actual),
-      cm_mrt_proj = cumsum(mrt_proj)
-    ) %>%
-    mutate(dif = cm_mrt_actual - cm_mrt_proj) -> diffs 
-  
-    male_increment <- diffs  %>% 
+      cm_mrt_actual = cumsum(deaths), 
+      cm_mrt_counter = cumsum(deaths_counterfactual),
+      dif = cm_mrt_actual - cm_mrt_counter
+    ) -> diffs_estimates
+
+    male_increment <- diffs_estimates  %>% 
       filter(sex == "male")  %>% 
       filter(age %in% 84:89)  %>% 
       lm(dif ~ age, data = .)  %>% 
       coefficients()  %>% .["age"]
       
-    female_increment <- diffs  %>% 
+    female_increment <- diffs_estimates  %>% 
       filter(sex == "female")  %>% 
       filter(age %in% 84:89)  %>% 
       lm(dif ~ age, data = .)  %>% 
       coefficients()  %>% .["age"]
     
-    diffs  %>% select(sex, age, dif) -> simple_diffs 
+    diffs_estimates  %>% select(sex, age, dif) -> simple_diffs 
     
     female_dif_89 <- simple_diffs %>% filter(sex == "female", age == 89) %>% .$dif
     male_dif_89 <- simple_diffs %>% filter(sex == "male", age == 89) %>% .$dif
@@ -401,10 +405,7 @@ draw_diffs_extrapolate <- function(YEAR, XLIMS = c(-12000, 20000), RETURN = "gra
     geom_hline(yintercept = 0) +
     geom_vline(xintercept = 65, linetype = "dashed") + 
     theme_minimal() + 
-    labs(x = "Age in years", y = "Total additional deaths by\n age on x axis", title = YEAR) -> output
-  
-    if(RETURN == "table") {output <- simple_diffs}
-  return(output)
+    labs(x = "Age in years", y = "Total additional deaths by\n age on x axis", title = YEAR) 
 }
 
 # Special function to extrapolate ages 90 to 95 
@@ -478,15 +479,34 @@ dta  %>%
 sheet_coeffs <- createSheet(wb, sheetName = "coefficients")
 addDataFrame(all_coeffs, sheet_coeffs)
 
-  all_coeffs %>%   
-  mutate(est_lwr = estimate - 2 * std.error, est_upr = estimate + 2 * std.error)  %>% 
-  ggplot(., aes(x = age)) + 
-  facet_grid(term ~ sex, scales = "free_y") + 
-  geom_ribbon(aes(ymin = est_lwr, ymax = est_upr), fill = "lightgrey") + 
-  geom_line(aes(y = estimate)) + 
-  geom_hline(yintercept = 0) +
-  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
-  geom_vline(xintercept = 65, linetype = "dashed")
+  model_outputs %>% 
+    select(sex, age, mdl) %>% 
+    mutate(coef_tidy = map(mdl, tidy)) %>% 
+    select(-mdl) %>% 
+    unnest() %>% 
+    mutate(term = car::recode(
+      term, 
+      "
+      '(Intercept)' = 'Intercept';
+       'year' = 'Trend';
+       'newlabTRUE' = 'NL Intercept';
+       'recessionTRUE' = 'GFC Intercept'
+      "
+                         )) %>% 
+    mutate(
+      term = ifelse(term == "year:newlabTRUE", "NL Trend", term),
+      term = ifelse(term == "year:recessionTRUE", "GFC Trend", term)
+           ) %>% 
+    mutate(term = factor(term, levels = c("Intercept", "Trend", "NL Intercept", "NL Trend", "GFC Intercept", "GFC Trend"))
+           ) %>% 
+    mutate(upper = estimate + 1.96 * std.error, lower = estimate - 1.96 * std.error) %>% 
+    ggplot(., aes(x = age)) + 
+    facet_grid(term ~ sex, scales = "free_y") + 
+    geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightgrey") + 
+    geom_line(aes(y = estimate)) + 
+    geom_hline(yintercept = 0) +
+    scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+    geom_vline(xintercept = 65, linetype = "dashed")
   
 
 
