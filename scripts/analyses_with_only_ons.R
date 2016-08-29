@@ -4,7 +4,7 @@ rm(list = ls())
 
 require(pacman)
 pacman::p_load(
-
+  
   readr, readxl, xlsx,
   purrr, tidyr, dplyr, 
   broom,
@@ -88,7 +88,7 @@ dta  %>%
     sim_lmrs_nl = map2(prd_vec_nl, betas, make_stochastic_lmrs),
     sim_deaths = map2(data, sim_lmrs, predict_deaths),
     sim_deaths_nl = map2(data, sim_lmrs_nl, predict_deaths)
-    ) -> model_outputs
+  ) -> model_outputs
 
 
 model_outputs  %>% 
@@ -177,7 +177,7 @@ plot_actualprojected <- function(YEAR, XLIMS = c(0, 95), RETURN = "graph"){
   tmp <- fitted_twoscenarios %>% 
     filter(year == YEAR - 1990) %>% 
     select(sex, age, lmr, det_lmr_nl)  
-    
+  
   
   dta  %>% 
     filter(year == YEAR)  %>% 
@@ -196,8 +196,8 @@ plot_actualprojected <- function(YEAR, XLIMS = c(0, 95), RETURN = "graph"){
       cm_mrt_proj = cumsum(mrt_proj)
     ) -> tables 
   
-    
-    tables %>% 
+  
+  tables %>% 
     ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
     geom_point(aes(y = cm_mrt_actual)) +
     geom_line(aes(y = cm_mrt_proj)) +
@@ -205,8 +205,8 @@ plot_actualprojected <- function(YEAR, XLIMS = c(0, 95), RETURN = "graph"){
     scale_y_continuous(limits = c(0, 250000), labels = comma) +
     theme_minimal() + 
     labs(x = "Age in years", y = "Total actual and projected mortality by age", title = YEAR) -> output
-    
-    if(RETURN == "table"){output <- tables}
+  
+  if(RETURN == "table"){output <- tables}
   return(output)
 }
 
@@ -237,7 +237,7 @@ t_all <- Reduce(bind_rows, list(t_10, t_11, t_12, t_13, t_14, t_15))
 t_all %>% 
   select(sex, year, age, population, lmr, pred_nl, 
          mrt_actual, mrt_proj, cm_mrt_actual, cm_mrt_proj
-         ) -> t_all
+  ) -> t_all
 
 # sheet_actualprojected <- createSheet(wb, sheetName = "actual_projected")
 # addDataFrame(t_all, sheet_actualprojected)
@@ -247,7 +247,7 @@ t_all %>%
 # As above, but log scale
 plot_actualprojected_log <- function(
   YEAR, XLIMS = c(0, 95), XFOCUS = c(0, 95), YFOCUS = c(500, 250000)
-  ){
+){
   tmp <- fitted_twoscenarios %>% 
     filter(year == YEAR - 1990) %>% 
     select(sex, age, lmr, pred_nl)  
@@ -321,19 +321,19 @@ draw_diffs <- function(dta, YEAR, XLIMS = c(-12000, 20000), return_table = F){
       cm_mrt_actual = cumsum(deaths), 
       cm_mrt_counter = cumsum(deaths_counterfactual),
       dif = cm_mrt_actual - cm_mrt_counter
-      ) -> diffs_estimates
+    ) -> diffs_estimates
   
-    if (return_table) {return(diffs_estimates)}
-
-    diffs_estimates %>%     
-      ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
-      geom_line(aes(y = dif)) +
-      scale_x_continuous(limits = c(0, 95), breaks = c(0, seq(10, 90, by = 10))) + 
-      scale_y_continuous(limits = XLIMS, breaks = seq(XLIMS[1], XLIMS[2], by = 2000), labels = comma) +
-      geom_hline(yintercept = 0) +
-      geom_vline(xintercept = 65, linetype = "dashed") + 
-      theme_minimal() + 
-      labs(x = "Age in years", y = "Total additional deaths by\n age on x axis", title = YEAR)
+  if (return_table) {return(diffs_estimates)}
+  
+  diffs_estimates %>%     
+    ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
+    geom_line(aes(y = dif)) +
+    scale_x_continuous(limits = c(0, 95), breaks = c(0, seq(10, 90, by = 10))) + 
+    scale_y_continuous(limits = XLIMS, breaks = seq(XLIMS[1], XLIMS[2], by = 2000), labels = comma) +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 65, linetype = "dashed") + 
+    theme_minimal() + 
+    labs(x = "Age in years", y = "Total additional deaths by\n age on x axis", title = YEAR)
 }
 
 draw_diffs(fitted_twoscenarios, 2010)
@@ -356,48 +356,48 @@ draw_diffs_extrapolate <- function(dta, YEAR, XLIMS = c(-12000, 20000), return_t
       cm_mrt_counter = cumsum(deaths_counterfactual),
       dif = cm_mrt_actual - cm_mrt_counter
     ) -> diffs_estimates
-
-    male_increment <- diffs_estimates  %>% 
-      filter(sex == "male")  %>% 
-      filter(age %in% 84:89)  %>% 
-      lm(dif ~ age, data = .)  %>% 
-      coefficients()  %>% .["age"]
-      
-    female_increment <- diffs_estimates  %>% 
-      filter(sex == "female")  %>% 
-      filter(age %in% 84:89)  %>% 
-      lm(dif ~ age, data = .)  %>% 
-      coefficients()  %>% .["age"]
-    
-    diffs_estimates  %>% select(sex, age, dif) -> simple_diffs 
-    
-    female_dif_89 <- simple_diffs %>% filter(sex == "female", age == 89) %>% .$dif
-    male_dif_89 <- simple_diffs %>% filter(sex == "male", age == 89) %>% .$dif
-    
-    female_extrapolate_difs <- data_frame(
-      sex = "female", age = 89:95, 
-      dif = c(female_dif_89, NA, NA, NA, NA, NA, NA)
-    ) 
-    male_extrapolate_difs <- data_frame(
-      sex = "male", age = 89:95, 
-      dif = c(male_dif_89, NA, NA, NA, NA, NA, NA)
-    ) 
-    
-    for (i in 2:7) { 
-      female_extrapolate_difs$dif[i] <- female_extrapolate_difs$dif[i-1] + female_increment
-      male_extrapolate_difs$dif[i] <- male_extrapolate_difs$dif[i-1] + male_increment
-    }
-    
-   female_extrapolate_difs <- female_extrapolate_difs %>% filter(age != 89)
-    male_extrapolate_difs <- male_extrapolate_difs %>% filter(age != 89)
-
-   simple_diffs <- bind_rows(simple_diffs, female_extrapolate_difs, male_extrapolate_difs)  %>%
-     mutate(year = YEAR) %>% 
-     arrange(sex, age) %>% 
-     select(sex, year, age, dif)
-   
-      
-    simple_diffs %>% 
+  
+  male_increment <- diffs_estimates  %>% 
+    filter(sex == "male")  %>% 
+    filter(age %in% 84:89)  %>% 
+    lm(dif ~ age, data = .)  %>% 
+    coefficients()  %>% .["age"]
+  
+  female_increment <- diffs_estimates  %>% 
+    filter(sex == "female")  %>% 
+    filter(age %in% 84:89)  %>% 
+    lm(dif ~ age, data = .)  %>% 
+    coefficients()  %>% .["age"]
+  
+  diffs_estimates  %>% select(sex, age, dif) -> simple_diffs 
+  
+  female_dif_89 <- simple_diffs %>% filter(sex == "female", age == 89) %>% .$dif
+  male_dif_89 <- simple_diffs %>% filter(sex == "male", age == 89) %>% .$dif
+  
+  female_extrapolate_difs <- data_frame(
+    sex = "female", age = 89:95, 
+    dif = c(female_dif_89, NA, NA, NA, NA, NA, NA)
+  ) 
+  male_extrapolate_difs <- data_frame(
+    sex = "male", age = 89:95, 
+    dif = c(male_dif_89, NA, NA, NA, NA, NA, NA)
+  ) 
+  
+  for (i in 2:7) { 
+    female_extrapolate_difs$dif[i] <- female_extrapolate_difs$dif[i-1] + female_increment
+    male_extrapolate_difs$dif[i] <- male_extrapolate_difs$dif[i-1] + male_increment
+  }
+  
+  female_extrapolate_difs <- female_extrapolate_difs %>% filter(age != 89)
+  male_extrapolate_difs <- male_extrapolate_difs %>% filter(age != 89)
+  
+  simple_diffs <- bind_rows(simple_diffs, female_extrapolate_difs, male_extrapolate_difs)  %>%
+    mutate(year = YEAR) %>% 
+    arrange(sex, age) %>% 
+    select(sex, year, age, dif)
+  
+  
+  simple_diffs %>% 
     ggplot(., aes(x =age, group = sex, shape = sex, linetype = sex)) +
     geom_line(aes(y = dif)) +
     scale_x_continuous(limits = c(0, 95), breaks = c(0, seq(10, 90, by = 10))) + 
@@ -427,33 +427,21 @@ ggsave("figures/ons_only_total_excess_deaths_2010_2015_upto16k_extrapolated.png"
 
 
 
-# Estimates of cumulative differences by age 89 years 
 
-base_deaths <-  model_outputs  %>% 
-  select(sex, age, data) %>% 
-  unnest() %>% 
-  select(sex, age, year, deaths)
+# difference between actual and simulated deaths 
 
-#sim_deaths_nl_flat <- model_outputs %>% .[["sim_deaths_nl"]] %>% flatten()
-
-# Example - extract one death for one particular age and year 
-
-
-make_into_df <- function(lst){
-  I <- length(lst)
-  df <- data.frame(i = NA, j = NA, k = NA, sim = NA)
-  for (i in 1:I){
-    J <- length(lst %>% .[[i]])
-    for (j in 1:J){
-      K <- length(lst %>% .[[i]] %>% .[[j]])
-      for (k in 1:K){
-        sim <- lst %>% .[[i]] %>% .[[j]] %>% .[[k]]
-        df <- bind_rows(df, data.frame(i = i, j = j, k = k, sim = sim))
-      }
-    }
-  }
-  df
+compare_actual_against_predicted <- function(dta, sim_dth){
+  
+  
 }
+
+model_outputs %>% 
+  select(sex, age, data, sim_deaths_nl) %>% 
+  mutate(dta2 = by_row(data), ~.)
+
+
+
+
 
 # # For the numbers themselves 
 # 
@@ -478,34 +466,34 @@ make_into_df <- function(lst){
 
 # Coefficients?
 
-  model_outputs %>% 
-    select(sex, age, mdl) %>% 
-    mutate(coef_tidy = map(mdl, tidy)) %>% 
-    select(-mdl) %>% 
-    unnest() %>% 
-    mutate(term = car::recode(
-      term, 
-      "
+model_outputs %>% 
+  select(sex, age, mdl) %>% 
+  mutate(coef_tidy = map(mdl, tidy)) %>% 
+  select(-mdl) %>% 
+  unnest() %>% 
+  mutate(term = car::recode(
+    term, 
+    "
       '(Intercept)' = 'Intercept';
        'year' = 'Trend';
        'newlabTRUE' = 'NL Intercept';
        'recessionTRUE' = 'GFC Intercept'
       "
-                         )) %>% 
-    mutate(
-      term = ifelse(term == "year:newlabTRUE", "NL Trend", term),
-      term = ifelse(term == "year:recessionTRUE", "GFC Trend", term)
-           ) %>% 
-    mutate(term = factor(term, levels = c("Intercept", "Trend", "NL Intercept", "NL Trend", "GFC Intercept", "GFC Trend"))
-           ) %>% 
-    mutate(upper = estimate + 1.96 * std.error, lower = estimate - 1.96 * std.error) %>% 
-    ggplot(., aes(x = age)) + 
-    facet_grid(term ~ sex, scales = "free_y") + 
-    geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightgrey") + 
-    geom_line(aes(y = estimate)) + 
-    geom_hline(yintercept = 0) +
-    scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
-    geom_vline(xintercept = 65, linetype = "dashed")
-  
+  )) %>% 
+  mutate(
+    term = ifelse(term == "year:newlabTRUE", "NL Trend", term),
+    term = ifelse(term == "year:recessionTRUE", "GFC Trend", term)
+  ) %>% 
+  mutate(term = factor(term, levels = c("Intercept", "Trend", "NL Intercept", "NL Trend", "GFC Intercept", "GFC Trend"))
+  ) %>% 
+  mutate(upper = estimate + 1.96 * std.error, lower = estimate - 1.96 * std.error) %>% 
+  ggplot(., aes(x = age)) + 
+  facet_grid(term ~ sex, scales = "free_y") + 
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightgrey") + 
+  geom_line(aes(y = estimate)) + 
+  geom_hline(yintercept = 0) +
+  scale_x_continuous(breaks = c(0, seq(10, 90, by = 10))) + 
+  geom_vline(xintercept = 65, linetype = "dashed")
+
 ggsave("figures/ons_only_coefficients_with_age.png", height =30, width = 20, dpi = 300, units = "cm")
 
