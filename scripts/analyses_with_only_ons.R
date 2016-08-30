@@ -64,6 +64,14 @@ predict_deaths <- function(dta, lmrs){
   map2(pops, lmrs, .f = function(x, y) x * 10 ^ y)
 }
 
+compare_actual_w_counter <- function(dths_actual, dths_counter){
+  dths_diffs <- vector("list", length = length(dths_actual))
+  for (i in seq_along(dths_actual)){
+    dths_diffs[[i]] <- dths_actual - dths_counter[[i]]
+  }
+  dths_diffs
+}
+
 dta  %>% 
   filter(age <= 95)  %>% 
   filter(year >= 1990)  %>% 
@@ -87,8 +95,37 @@ dta  %>%
     sim_lmrs = map2(prd_vec, betas, make_stochastic_lmrs),
     sim_lmrs_nl = map2(prd_vec_nl, betas, make_stochastic_lmrs),
     sim_deaths = map2(data, sim_lmrs, predict_deaths),
-    sim_deaths_nl = map2(data, sim_lmrs_nl, predict_deaths)
+    sim_deaths_nl = map2(data, sim_lmrs_nl, predict_deaths),
+    dif_deaths_nl = map2(map(data, ~ .$deaths), sim_deaths_nl, compare_actual_w_counter)
   ) -> model_outputs
+
+
+# For each sex, age, year, extract 1000 estimates of numbers of excess deaths
+
+make_sims_into_df <- function(yr, dths){
+  output <- vector("list", length(yr))
+  for (i in seq_along(dths)){
+    sims <- seq_along(dths[[i]])
+    these_dths <- dths[[i]]
+    year <- yr[[i]]
+    df <- data_frame(year = year, sim = sims, deaths = these_dths)
+    output[[i]] <- df
+  }
+  output <- reduce(output, bind_rows)
+  output  
+}
+
+
+
+model_outputs %>% 
+  select(sex, age, data, dif_deaths_nl) %>% 
+  mutate(year = map(data, ~.$year)) %>% 
+  select(-data) %>% 
+  mutate(sim_deaths = map2(year, dif_deaths_nl, make_sims_into_df)) %>% 
+  select(sex, age, sim_deaths) -> tmp
+
+
+###################################################################
 
 
 model_outputs  %>% 
