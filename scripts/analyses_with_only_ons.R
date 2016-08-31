@@ -72,6 +72,12 @@ compare_actual_w_counter <- function(dths_actual, dths_counter){
   dths_diffs
 }
 
+compare_model_w_countermodel <- function(dths_model, dths_counter_model){
+  dths_diffs <- map2(dths_model, dths_counter_model, function(x, y) x - y)
+  dths_diffs
+}
+
+
 dta  %>% 
   filter(age <= 95)  %>% 
   filter(year >= 1990)  %>% 
@@ -96,7 +102,8 @@ dta  %>%
     sim_lmrs_nl = map2(prd_vec_nl, betas, make_stochastic_lmrs),
     sim_deaths = map2(data, sim_lmrs, predict_deaths),
     sim_deaths_nl = map2(data, sim_lmrs_nl, predict_deaths),
-    dif_deaths_nl = map2(map(data, ~ .$deaths), sim_deaths_nl, compare_actual_w_counter)
+    dif_deaths_nl = map2(map(data, ~ .$deaths), sim_deaths_nl, compare_actual_w_counter),
+    dif_deaths_stoch = map2(sim_deaths, sim_deaths_nl, compare_model_w_countermodel)
   ) -> model_outputs
 
 
@@ -148,6 +155,39 @@ dif_deaths_stoch %>%
   facet_grid(sex ~ age) + 
   coord_flip()
 
+
+model_outputs %>% 
+  select(sex, age, data, dif_deaths_stoch) %>% 
+  mutate(year = map(data, ~.$year)) %>% 
+  select(-data) %>% 
+  mutate(sim_deaths = map2(year, dif_deaths_stoch, make_sims_into_df)) %>% 
+  select(sex, age, sim_deaths) %>% 
+  unnest() -> dif_deaths_double_stoch
+
+dif_deaths_double_stoch %>% 
+  group_by(sex, age, year) %>% 
+  summarise(
+    d_0025 = quantile(deaths, 0.025),
+    d_0050 = quantile(deaths, 0.050),
+    d_0250 = quantile(deaths, 0.250),
+    d_0500 = quantile(deaths, 0.500),
+    d_0750 = quantile(deaths, 0.750),
+    d_0950 = quantile(deaths, 0.950),
+    d_0975 = quantile(deaths, 0.975)
+  ) %>% 
+  ungroup() %>% 
+  mutate(year = year + 1990) %>% 
+  filter(age %in% c(0, 5, 25, 50, 60, 65, 70, 75, 80, 85)) %>%
+  filter(year >= 2010) %>% 
+  ggplot(., aes(x = year)) + 
+  geom_ribbon(aes(ymin = d_0250, ymax = d_0750), alpha = 0.2) + 
+  geom_ribbon(aes(ymin = d_0050, ymax = d_0950), alpha = 0.2) + 
+  geom_ribbon(aes(ymin = d_0025, ymax = d_0975), alpha = 0.2) + 
+  geom_line(aes(y = d_0500)) + 
+  geom_hline(aes(yintercept = 0), linetype = "dashed") + 
+  geom_vline(aes(xintercept = 2010), linetype = "dashed") + 
+  facet_grid(sex ~ age) +
+  theme(axis.text.x = element_text(angle = 90))
 
 
 ###################################################################
