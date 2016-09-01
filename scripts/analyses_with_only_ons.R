@@ -26,6 +26,10 @@ run_regression <- function(dta){
   lm(lmr ~ year * (newlab + recession), data = dta)
 }
 
+run_regression_alt <- function(dta){ # adding year squared
+  lm(lmr ~ year * (newlab + recession) + I(year^2), data = dta)
+}
+
 extract_coeffs <- function(mdl){
   mdl %>% coefficients() 
 }
@@ -50,6 +54,22 @@ vectorise_predictors <- function(dta, set_nl = F){
   }
   out  
 }
+
+vectorise_predictors_alt <- function(dta, set_nl = F){
+  # The output should be a list of vectors, one for each year
+  out <- list()
+  for (i in 1:nrow(dta)){
+    yr <- as.numeric(dta[i, "year"])
+    yr2 <- yr^2
+    nl <- ifelse(set_nl, 1, as.numeric(dta[i, "newlab"]))
+    rc <- as.numeric(dta[i, "recession"])
+    this_vec <- c(1, yr, yr2, nl, rc, yr * nl, yr * rc, yr)
+    out[[i]] <- this_vec
+  }
+  out  
+}
+
+
 
 make_deterministic_lmrs <- function(x, B){
   map_dbl(x, function(v) v %*% B)
@@ -93,18 +113,30 @@ dta  %>%
   mutate(
     mdl = map(data, run_regression),
     coeffs  = map(mdl, extract_coeffs),
+    mdl_alt = map(data, run_regression_alt), 
+    coeffs_alt = map(mdl_alt, extract_coeffs),
     vcv = map(mdl, extract_vcov),
-    betas = map2(coeffs, vcv, sim_betas),
-    prd_vec = map(data, vectorise_predictors),
-    prd_vec_nl = map(data, vectorise_predictors, set_nl = T),
-    det_lmr_nl = map2(prd_vec_nl, coeffs, make_deterministic_lmrs),
-    sim_lmrs = map2(prd_vec, betas, make_stochastic_lmrs),
-    sim_lmrs_nl = map2(prd_vec_nl, betas, make_stochastic_lmrs),
-    sim_deaths = map2(data, sim_lmrs, predict_deaths),
-    sim_deaths_nl = map2(data, sim_lmrs_nl, predict_deaths),
-    dif_deaths_nl = map2(map(data, ~ .$deaths), sim_deaths_nl, compare_actual_w_counter),
-    dif_deaths_stoch = map2(sim_deaths, sim_deaths_nl, compare_model_w_countermodel)
+    vcv_alt = map(mdl_alt, extract_vcov),
+    compare_aic = map2_dbl(mdl, mdl_alt, function(x, y) AIC(x) - AIC(y))
+#    betas = map2(coeffs, vcv, sim_betas),
+#    prd_vec = map(data, vectorise_predictors),
+#    prd_vec_nl = map(data, vectorise_predictors, set_nl = T),
+#    det_lmr_nl = map2(prd_vec_nl, coeffs, make_deterministic_lmrs),
+#    sim_lmrs = map2(prd_vec, betas, make_stochastic_lmrs),
+#    sim_lmrs_nl = map2(prd_vec_nl, betas, make_stochastic_lmrs),
+#    sim_deaths = map2(data, sim_lmrs, predict_deaths),
+#    sim_deaths_nl = map2(data, sim_lmrs_nl, predict_deaths),
+#    dif_deaths_nl = map2(map(data, ~ .$deaths), sim_deaths_nl, compare_actual_w_counter),
+#    dif_deaths_stoch = map2(sim_deaths, sim_deaths_nl, compare_model_w_countermodel)
   ) -> model_outputs
+
+# See whether standard or additional model performs better
+
+ggplot(model_outputs, aes(x = age, y = compare_aic, group= sex, colour = sex)) + 
+  geom_line() + 
+  stat_smooth(se = F) + 
+  geom_hline(aes(yintercept = 0))
+# Slight evidence alt model performs better for young adult men and older women (post 50)
 
 
 # For each sex, age, year, extract 1000 estimates of numbers of excess deaths
