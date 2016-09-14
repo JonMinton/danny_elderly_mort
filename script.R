@@ -217,6 +217,8 @@ smooth_dta_both  %>%
 
 tmp_joined <- full_join(tmp_ons, tmp_hmd)
 
+
+
 rm(tmp_ons, tmp_hmd)
 
 tmp_joined %>% 
@@ -659,3 +661,62 @@ double_smoothed_data  %>%
 
 ggsave("figures/coefficients_with_age.png", height =30, width = 20, dpi = 300, units = "cm")
 
+
+
+# Produce different variants of the above  --------------------------------
+
+
+# Variants to produce 
+# 1) ONS only - unsmoothed 
+# 2) HMD only - unsmoothed 
+
+# The following code, using the ONS data, shows how the R-squared of models 
+# regressing log mortality rate against year varies with age.
+# It clearly shows how the log-linear decrease assumption is most good 
+# for trends in infancy and least good for trends for males in early adulthood, 
+# especially arout age 27
+# This is from year 1961 onwards 
+
+
+
+dta %>% 
+  filter(place == "ew") %>% 
+  select(-place) %>% 
+  mutate(
+    year = as.integer(year), 
+    mr = (0.5 + deaths) / (0.5 + population), 
+    lmr = log(mr, 10)
+    ) %>% 
+  group_by(sex, age) %>% 
+  nest() %>% 
+  mutate(model = map(data, ~lm(lmr ~ year, data = .))) %>% 
+  mutate(m2 = map(model, glance)) %>% 
+  select(-data, -model) %>% 
+  unnest() %>% 
+  select(sex, age, r.squared) %>% 
+  filter(age <=95) %>% 
+  qplot(data = ., x = age, y = r.squared, group = sex, colour = sex, geom = c("line", "point")) 
+
+# Now to do the same from 1990 onwards 
+
+dta %>% 
+  filter(place == "ew") %>% 
+  select(-place) %>% 
+  mutate(
+    year = as.integer(year), 
+    mr = (0.5 + deaths) / (0.5 + population), 
+    lmr = log(mr, 10)
+  ) %>% 
+  filter(year >=1990) %>% 
+  group_by(sex, age) %>% 
+  nest() %>% 
+  mutate(model = map(data, ~lm(lmr ~ year, data = .))) %>% 
+  mutate(m2 = map(model, glance)) %>% 
+  select(-data, -model) %>% 
+  unnest() %>% 
+  select(sex, age, r.squared) %>% 
+  filter(age <=95) %>% 
+  qplot(data = ., x = age, y = r.squared, group = sex, colour = sex, geom = c("line", "point")) 
+
+# From 1990 onwards the pattern is strongest from around age 55 to around age 80.
+# The correlations are weaker for both males and females 
