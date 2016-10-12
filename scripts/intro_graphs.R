@@ -70,8 +70,11 @@ gdp_per_cap %>%
   labs(y = "GDP per capita in £", x = "Year") + 
   theme_minimal() -> long_term_gdp_trend
 
-# Something similar for long-term trend in E0, e5, e50 and e65
+print(long_term_gdp_trend)
+# New figure 1 
+ggsave("figures/figure_01_gdp.png", height = 15, width = 15, units = "cm", dpi = 300)
 
+# Something similar for long-term trend in E0, e5, e50 and e65
 
 #Let's do this properly using the algorithm 
 
