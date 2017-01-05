@@ -7,6 +7,7 @@ pacman::p_load(
   
   readr, readxl, xlsx,
   purrr, tidyr, dplyr, 
+  stringr,
   broom,
   ggplot2, cowplot, scales
 )
@@ -15,20 +16,150 @@ pacman::p_load(
 source("scripts/extract_combined_ons.R")
 
 
+# 5/1/2017  - revision of model
+
+# Basic idea is to present up to four different plausible models each with different specs
+
+# The models I have so far: 
+
+# 1) lmr ~ year * (lab + recession)
+#   lmr ~ year + year:lab + year:recession + lab + recession
+# 2) lmr ~ year * (lab + recession) + I(year^2)
+#   lmr ~ year + year:lab + year:recession + lab + recession + year^2
+# 3) lmr ~ year * lab 
+#   lmr ~ year + year:lab + lab
+# 4) lmr ~ year * recession
+#   lmr ~ year + year:recession + recession
+# 5) lmr ~ year + lab
+# 6) lmr ~ year + recession 
+# 7) lmr ~ year + year^2 
+# 8) lmr ~ year + year^2 + year^3
+# 9) lmr ~ (year + year^2) * recession
+# 10) lmr ~ (year + year^2) * lab
+# 11) lmr ~ (year + year^2) + lab
+# 12) lmr ~ (year + year^2 + year^3) * lab
+# 13) lmr ~ (year + year^2 + year^3) + lab
+# 14) lmr ~ (year + year^2 + year^3) * recession
+# 15) lmr ~ (year + year^2 + year^3) + recession
+# 16) lmr ~ (year + year^2 + year^3 + year^4) 
+# 17) lmr ~ (year + year^2 + year^3 + year^4) * recession
+# 18) lmr ~ (year + year^2 + year^3 + year^4) + recession
+# 19) lmr ~ (year + year^2 + year^3 + year^4) * lab
+# 20) lmr ~ (year + year^2 + year^3 + year^4) + lab
+
+
+
 
 
 # Modelling ---------------------------------------------------------------
 
-# What I want to do: for each variable in each model, produce 10 000 draws of distributions 
 
-# First, get this right for one model
-run_regression <- function(dta){
-  lm(lmr ~ year * (newlab + recession), data = dta)
+
+# Model specifications  ---------------------------------------------------
+
+
+
+run_model_01 <- function(dta){
+  lm(lmr ~ year * (lab + recession), data = dta)
 }
 
-run_regression_alt <- function(dta){ # adding year squared
-  lm(lmr ~ year * (newlab + recession) + I(year^2), data = dta)
+run_model_02 <- function(dta){ 
+  lm(lmr ~ year * (lab + recession) + I(year^2), data = dta)
 }
+
+run_model_03 <- function(dta){ 
+  lm(lmr ~ year * lab, data = dta)
+}
+
+run_model_04 <- function(dta){ 
+  lm(lmr ~ year * recession, data = dta)
+}
+
+run_model_05 <- function(dta){ 
+  lm(lmr ~ year + lab, data = dta)
+}
+
+
+run_model_06 <- function(dta){ 
+  lm(lmr ~ year + recession , data = dta)
+}
+
+run_model_07 <- function(dta){ 
+  lm(lmr ~ year + I(year^2) , data = dta)
+}
+
+run_model_08 <- function(dta){ 
+  lm(lmr ~ year + I(year^2) + I(year^3) , data = dta)
+}
+
+run_model_09 <- function(dta){ 
+  lm(lmr ~ recession * (year + I(year^2)) , data = dta)
+}
+
+run_model_10 <- function(dta){ 
+  lm(lmr ~ lab * (year + I(year^2)) , data = dta)
+}
+
+run_model_11 <- function(dta){ 
+  lm(lmr ~ lab + (year + I(year^2)) , data = dta)
+}
+
+run_model_12 <- function(dta){ 
+  lm(lmr ~ lab * (year + I(year^2) + I(year^3)) , data = dta)
+}
+
+run_model_13 <- function(dta){ 
+  lm(lmr ~ lab + (year + I(year^2) + I(year^3)) , data = dta)
+}
+
+run_model_14 <- function(dta){ 
+  lm(lmr ~ recession * (year + I(year^2) + I(year^3)) , data = dta)
+}
+
+run_model_15 <- function(dta){ 
+  lm(lmr ~ recession + (year + I(year^2) + I(year^3)) , data = dta)
+}
+
+run_model_16 <- function(dta){ 
+  lm(lmr ~ (year + I(year^2) + I(year^3) + I(year^4)) , data = dta)
+}
+
+run_model_17 <- function(dta){ 
+  lm(lmr ~ recession * (year + I(year^2) + I(year^3) + I(year^4)) , data = dta)
+}
+
+run_model_18 <- function(dta){ 
+  lm(lmr ~ recession + (year + I(year^2) + I(year^3) + I(year^4)) , data = dta)
+}
+
+run_model_19 <- function(dta){ 
+  lm(lmr ~ lab * (year + I(year^2) + I(year^3) + I(year^4)) , data = dta)
+}
+
+run_model_20 <- function(dta){ 
+  lm(lmr ~ lab + (year + I(year^2) + I(year^3) + I(year^4)) , data = dta)
+}
+
+run_model_21 <- function(dta){ 
+  lm(lmr ~ lab * year + I(year^2) + I(year^3) + I(year^4) , data = dta)
+}
+
+run_model_22 <- function(dta){ 
+  lm(lmr ~ lab + year + I(year^2) + I(year^3) + I(year^4) , data = dta)
+}
+
+run_model_23 <- function(dta){ 
+  lm(lmr ~ lab * recession + year + I(year^2) + I(year^3) + I(year^4) , data = dta)
+}
+
+run_model_24 <- function(dta){ 
+  lm(lmr ~ lab * recession * year + I(year^2) + I(year^3) + I(year^4) , data = dta)
+}
+
+
+# Other functions  --------------------------------------------------------
+
+
 
 extract_coeffs <- function(mdl){
   mdl %>% coefficients() 
@@ -42,12 +173,13 @@ sim_betas <- function(cfs, vcv, n_sim = 1000){
   MASS::mvrnorm(n = n_sim, mu = cfs, Sigma = vcv)
 }
 
+# This will only work with model 1
 vectorise_predictors <- function(dta, set_nl = F){
   # The output should be a list of vectors, one for each year
   out <- list()
   for (i in 1:nrow(dta)){
     yr <- as.numeric(dta[i, "year"])
-    nl <- ifelse(set_nl, 1, as.numeric(dta[i, "newlab"]))
+    nl <- ifelse(set_nl, 1, as.numeric(dta[i, "lab"]))
     rc <- as.numeric(dta[i, "recession"])
     this_vec <- c(1, yr, nl, rc, yr * nl, yr * rc)
     out[[i]] <- this_vec
@@ -55,13 +187,15 @@ vectorise_predictors <- function(dta, set_nl = F){
   out  
 }
 
+# This will only work with model 2
+
 vectorise_predictors_alt <- function(dta, set_nl = F){
   # The output should be a list of vectors, one for each year
   out <- list()
   for (i in 1:nrow(dta)){
     yr <- as.numeric(dta[i, "year"])
     yr2 <- yr^2
-    nl <- ifelse(set_nl, 1, as.numeric(dta[i, "newlab"]))
+    nl <- ifelse(set_nl, 1, as.numeric(dta[i, "lab"]))
     rc <- as.numeric(dta[i, "recession"])
     this_vec <- c(1, yr,  nl, rc, yr2, yr * nl, yr * rc)
     out[[i]] <- this_vec
@@ -69,6 +203,20 @@ vectorise_predictors_alt <- function(dta, set_nl = F){
   out  
 }
 
+vectorise_predictors_best_model <- function(dta, set_lab = F){
+  # The output should be a list of vectors, one for each year
+  out <- list()
+  for (i in 1:nrow(dta)){
+    yr <- as.numeric(dta[i, "year"])
+    yr2 <- yr^2
+    yr3 <- yr^3
+    yr4 <- yr^4
+    lab <- ifelse(set_lab, 1, as.numeric(dta[i, "lab"]))
+    this_vec <- c(1, lab, yr, yr2, yr3, yr4, lab* yr, lab*yr2, lab*yr3, lab*yr4)
+    out[[i]] <- this_vec
+  }
+  out  
+}
 
 
 make_deterministic_lmrs <- function(x, B){
@@ -98,42 +246,260 @@ compare_model_w_countermodel <- function(dths_model, dths_counter_model){
 }
 
 
+# Automate model production  ----------------------------------------------
+
+# Additional sensitivity analysis should be start year, 
+# and whether to include additional years as recession years 
+
+# All models, from 1990 onwards 
+
 dta  %>% 
   filter(age <= 89)  %>% 
   filter(year >= 1990)  %>% 
   filter(place == "ew") %>% 
   mutate(lmr = log(deaths/population, 10)) %>% 
   mutate(
-    newlab = year >= 1997 & year <= 2010, 
-    recession = year %in% 2008:2009
+    lab = year %in% c(1964, 1974:1978, 1997:2010), 
+    recession = year %in% c(1961, 1973:1975, 1990:1991, 2008:2009)
   )  %>% 
   mutate(year = year - min(year)) %>% 
   group_by(sex, age)  %>% 
   nest()  %>%
   mutate(
-    mdl = map(data, run_regression),
-    coeffs  = map(mdl, extract_coeffs),
-    mdl_alt = map(data, run_regression_alt), 
-    coeffs_alt = map(mdl_alt, extract_coeffs),
-    vcv = map(mdl, extract_vcov),
-    vcv_alt = map(mdl_alt, extract_vcov),
-    compare_aic = map2_dbl(mdl, mdl_alt, function(x, y) AIC(x) - AIC(y)),
-    betas = map2(coeffs, vcv, sim_betas),
-    betas_alt  = map2(coeffs_alt, vcv_alt, sim_betas),
-    prd_vec = map(data, vectorise_predictors),
-    prd_vec_nl = map(data, vectorise_predictors, set_nl = T),
-    prd_vec_nl_alt = map(data, vectorise_predictors_alt, set_nl = T),
-    det_lmr_nl = map2(prd_vec_nl, coeffs, make_deterministic_lmrs),
-    det_lmr_nl_alt = map2(prd_vec_nl_alt, coeffs_alt, make_deterministic_lmrs),
-    sim_lmrs = map2(prd_vec, betas, make_stochastic_lmrs),
-    sim_lmrs_nl = map2(prd_vec_nl, betas, make_stochastic_lmrs),
-    sim_lmrs_nl_alt = map2(prd_vec_nl_alt, betas_alt, make_stochastic_lmrs),
-    sim_deaths = map2(data, sim_lmrs, predict_deaths),
-    sim_deaths_nl = map2(data, sim_lmrs_nl, predict_deaths),
-    dif_deaths_nl = map2(map(data, ~ .$deaths), sim_deaths_nl, compare_actual_w_counter),
-    dif_deaths_stoch = map2(sim_deaths, sim_deaths_nl, compare_model_w_countermodel)
-  ) -> model_outputs
+    mdl_01 = map(data, run_model_01),
+    mdl_02 = map(data, run_model_02),
+    mdl_03 = map(data, run_model_03),
+    mdl_04 = map(data, run_model_04),
+    mdl_05 = map(data, run_model_05),
+    mdl_06 = map(data, run_model_06),
+    mdl_07 = map(data, run_model_07),
+    mdl_08 = map(data, run_model_08),
+    mdl_09 = map(data, run_model_09),
+    mdl_10 = map(data, run_model_10),
+    mdl_11 = map(data, run_model_11),
+    mdl_12 = map(data, run_model_12),
+    mdl_13 = map(data, run_model_13),
+    mdl_14 = map(data, run_model_14),
+    mdl_15 = map(data, run_model_15),
+    mdl_16 = map(data, run_model_16),
+    mdl_17 = map(data, run_model_17),
+    mdl_18 = map(data, run_model_18),
+    mdl_19 = map(data, run_model_19),
+    mdl_20 = map(data, run_model_20),
+    mdl_21 = map(data, run_model_21),
+    mdl_22 = map(data, run_model_22),
+    mdl_23 = map(data, run_model_23),
+    mdl_24 = map(data, run_model_24)
+    
+  ) %>% 
+  select(-data) %>% 
+  gather(key = "mod_number", value = "model", mdl_01:mdl_24) %>% 
+  mutate(mod_number = str_replace(mod_number, "mdl_", "")) -> all_models_1990
 
+# All models, all available years (from 1961)
+dta  %>% 
+  filter(age <= 89)  %>% 
+  filter(place == "ew") %>% 
+  mutate(lmr = log(deaths/population, 10)) %>% 
+  mutate(
+    lab = year %in% c(1964, 1974:1978, 1997:2010), 
+    recession = year %in% c(1961, 1973:1975, 1990:1991, 2008:2009)
+  )  %>% 
+  mutate(year = year - min(year)) %>% 
+  group_by(sex, age)  %>% 
+  nest()  %>%
+  mutate(
+    mdl_01 = map(data, run_model_01),
+    mdl_02 = map(data, run_model_02),
+    mdl_03 = map(data, run_model_03),
+    mdl_04 = map(data, run_model_04),
+    mdl_05 = map(data, run_model_05),
+    mdl_06 = map(data, run_model_06),
+    mdl_07 = map(data, run_model_07),
+    mdl_08 = map(data, run_model_08),
+    mdl_09 = map(data, run_model_09),
+    mdl_10 = map(data, run_model_10),
+    mdl_11 = map(data, run_model_11),
+    mdl_12 = map(data, run_model_12),
+    mdl_13 = map(data, run_model_13),
+    mdl_14 = map(data, run_model_14),
+    mdl_15 = map(data, run_model_15),
+    mdl_16 = map(data, run_model_16),
+    mdl_17 = map(data, run_model_17),
+    mdl_18 = map(data, run_model_18),
+    mdl_19 = map(data, run_model_19),
+    mdl_20 = map(data, run_model_20),
+    mdl_21 = map(data, run_model_21),
+    mdl_22 = map(data, run_model_22),
+    mdl_23 = map(data, run_model_23),
+    mdl_24 = map(data, run_model_24)
+    
+  ) %>% 
+  select(-data) %>% 
+  gather(key = "mod_number", value = "model", mdl_01:mdl_24) %>% 
+  mutate(mod_number = str_replace(mod_number, "mdl_", "")) -> all_models_1961
+
+
+# AIC, BIC and Rsquared by age 
+
+all_models_1961 %>% 
+  mutate(
+    aic = map_dbl(model, AIC),
+    bic = map_dbl(model, BIC),
+    rsq = map_dbl(model, function(x) {summary(x)$r.squared}),
+    rsq_adj = map_dbl(model, function(x) {summary(x)$adj.r.squared})
+    ) %>% 
+  select(-model) %>% 
+  mutate(start_year = 1961) %>% 
+  select(mod_number, start_year, sex, age, aic:rsq_adj) -> mod_summaries_1961
+
+all_models_1990 %>% 
+  mutate(
+    aic = map_dbl(model, AIC),
+    bic = map_dbl(model, BIC),
+    rsq = map_dbl(model, function(x) {summary(x)$r.squared}),
+    rsq_adj = map_dbl(model, function(x) {summary(x)$adj.r.squared})
+  ) %>% 
+  select(-model) %>% 
+  mutate(start_year = 1990) %>% 
+  select(mod_number, start_year, sex, age, aic:rsq_adj) -> mod_summaries_1990
+
+mod_summaries_both <- bind_rows(mod_summaries_1961, mod_summaries_1990)
+
+
+# Now to explore this 
+
+mod_summaries_both %>% 
+  group_by(mod_number, start_year) %>% 
+  summarise_each(funs(mean), aic:rsq_adj) %>% 
+  ggplot(., aes(x = mod_number, y = aic)) + 
+  geom_point() + facet_wrap(~ start_year, scales = "free_y")
+# AIC suggests model 11 is best, then model 8, if looking from 1961 onwards
+# If looking from 1990, model 8 then model 11.
+# model 8: lmr ~ year + year^2 + year^3
+# model 11: lmr ~ lab * (year + year^2 + year^3)
+
+
+mod_summaries_both %>% 
+  group_by(mod_number, start_year) %>% 
+  summarise_each(funs(mean), aic:rsq_adj) %>% 
+  ggplot(., aes(x = mod_number, y = bic)) + 
+  geom_point() + facet_wrap(~ start_year, scales = "free_y")
+
+# BIC suggests model 8 is best, then model 11, if looking from 1961 onwards
+# If looking from 1990, model 8 is best, then model 7.
+# model 7: lmr ~ year + year^2
+# model 8: lmr ~ year + year^2 + year^3
+# model 11: lmr ~ lab * (year + year^2 + year^3)
+
+mod_summaries_both %>% 
+  group_by(mod_number, start_year) %>% 
+  summarise_each(funs(mean), aic:rsq_adj) %>% 
+  ggplot(., aes(x = mod_number, y = rsq)) + 
+  geom_point() + facet_wrap(~ start_year, scales = "free_y")
+
+# rsq suggests model 11, then model 2 (lab:recession:year interaction + year^2)  
+# if looking from 1990 onwards.
+# If looking from 1961 onwards, model 11 then model 8
+
+# model 2: lmr ~ year * (lab + recession) + I(year^2)
+# model 7: lmr ~ year + year^2
+# model 8: lmr ~ year + year^2 + year^3
+# model 11: lmr ~ lab * (year + year^2 + year^3)
+
+mod_summaries_both %>% 
+  group_by(mod_number, start_year) %>% 
+  summarise_each(funs(mean), aic:rsq_adj) %>% 
+  ggplot(., aes(x = mod_number, y = rsq_adj)) + 
+  geom_point() + facet_wrap(~ start_year, scales = "free_y")
+
+# Adjusted R-squared indicates model 11 for both start dates
+# then model 8 for 1961 onwards, and model 2 for 1990 onwards
+
+
+# I'm now looking at model 19
+
+mod_summaries_both %>% 
+  filter(mod_number == "19") %>% 
+  filter(start_year == 1961) %>% 
+  ggplot(., aes(x = age, colour = sex, y = rsq_adj)) + 
+  geom_point() 
+
+mod_summaries_both %>% 
+  filter(mod_number == "19") %>% 
+  filter(start_year == 1961) %>% 
+  ggplot(., aes(x = age, colour = sex, y = aic)) + 
+  geom_point() 
+
+mod_summaries_both %>% 
+  filter(mod_number == "19") %>% 
+  filter(start_year == 1961) %>% 
+  ggplot(., aes(x = age, colour = sex, y = bic)) + 
+  geom_point() 
+
+# The above suggest the model fit should be focused on ages 0 and 50+ 
+
+mod_summaries_both %>% 
+  filter(age %in% c(0, 50:89)) %>% 
+  group_by(mod_number, start_year) %>% 
+  summarise_each(funs(mean), aic:rsq_adj) %>% 
+  ggplot(., aes(x = mod_number, y = aic)) + 
+  geom_point() + facet_wrap(~ start_year, scales = "free_y")
+
+mod_summaries_both %>% 
+  filter(age %in% c(0, 50:89)) %>% 
+  group_by(mod_number, start_year) %>% 
+  summarise_each(funs(mean), aic:rsq_adj) %>% 
+  ggplot(., aes(x = mod_number, y = rsq_adj)) + 
+  geom_point() + facet_wrap(~ start_year, scales = "free_y")
+
+mod_summaries_both %>% 
+  filter(age %in% c(0, 50:89)) %>% 
+  group_by(mod_number, start_year) %>% 
+  summarise_each(funs(mean), aic:rsq_adj) %>% 
+  ggplot(., aes(x = mod_number, y = bic)) + 
+  geom_point() + facet_wrap(~ start_year, scales = "free_y")
+
+
+
+
+# Conclusion
+# Though results are equivocal, I will go for model 19 with all years 
+
+# Names and coefficient positions of model 19
+# (Intercept)           labTRUE              year         I(year^2)         I(year^3)         I(year^4) 
+# -1.728501e+00     -5.216318e-02     -2.024589e-03     -9.519294e-04      2.131065e-05     -1.446998e-07 
+# labTRUE:year labTRUE:I(year^2) labTRUE:I(year^3) labTRUE:I(year^4) 
+# 2.160284e-02     -1.805440e-03      5.148380e-05     -4.637523e-07 
+
+dta  %>% 
+  filter(age <= 89)  %>% 
+  filter(place == "ew") %>% 
+  mutate(lmr = log(deaths/population, 10)) %>% 
+  mutate(
+    lab = year %in% c(1964, 1974:1978, 1997:2010), 
+    recession = year %in% c(1961, 1973:1975, 1990:1991, 2008:2009)
+  )  %>% 
+  mutate(year = year - min(year)) %>% 
+  group_by(sex, age)  %>% 
+  nest()  %>%
+  mutate(
+    best_model = map(data, run_model_19),
+    coeffs  = map(best_model, extract_coeffs),
+    vcv = map(best_model, extract_vcov),
+    betas = map2(coeffs, vcv, sim_betas),
+    prd_vec = map(data, vectorise_predictors_best_model),
+    prd_vec_lab = map(data, vectorise_predictors_best_model, set_lab = T),
+    det_lmr_lab = map2(prd_vec_lab, coeffs, make_deterministic_lmrs),
+    sim_lmrs = map2(prd_vec, betas, make_stochastic_lmrs),
+    sim_lmrs_lab = map2(prd_vec_lab, betas, make_stochastic_lmrs),
+    sim_deaths = map2(data, sim_lmrs, predict_deaths),
+    sim_deaths_lab = map2(data, sim_lmrs_lab, predict_deaths),
+    dif_deaths_lab = map2(map(data, ~ .$deaths), sim_deaths_lab, compare_actual_w_counter),
+    dif_deaths_stoch = map2(sim_deaths, sim_deaths_lab, compare_model_w_countermodel)
+  ) -> best_model_sims
+
+# Models + simulations 
 
 
 # Plots -------------------------------------------------------------------
@@ -143,21 +509,21 @@ dta  %>%
 
 # Figure 2 - banded plots at older ages  ----------------------------------
 
-model_outputs  %>% 
-  select(sex, age, data, det_lmr_nl)  %>% 
+best_model_sims  %>% 
+  select(sex, age, data, det_lmr_lab)  %>% 
   unnest() -> fitted_twoscenarios
 
-model_outputs %>% 
-  select(sex, age, data, sim_lmrs_nl) %>% 
+best_model_sims %>% 
+  select(sex, age, data, sim_lmrs_lab) %>% 
   mutate(
-    ul_lwr = map(sim_lmrs_nl, function(x) {map_dbl(x, quantile, probs = 0.025)}),
-    ul_upr = map(sim_lmrs_nl, function(x) {map_dbl(x, quantile, probs = 0.975)})
+    ul_lwr = map(sim_lmrs_lab, function(x) {map_dbl(x, quantile, probs = 0.025)}),
+    ul_upr = map(sim_lmrs_lab, function(x) {map_dbl(x, quantile, probs = 0.975)})
   ) %>% 
   select(sex, age, data, ul_lwr, ul_upr)  %>% 
   unnest() -> mod_bands 
 
 mod_bands <- fitted_twoscenarios  %>% 
-  select(sex, age, det_lmr_nl, place, year)  %>% 
+  select(sex, age, det_lmr_lab, place, year)  %>% 
   inner_join(mod_bands) 
 
 make_valband <- function(ages, min_year = 1997, identity_scale = F){
@@ -167,7 +533,7 @@ make_valband <- function(ages, min_year = 1997, identity_scale = F){
       mutate(
         ul_lwr = 10^ul_lwr,
         ul_upr = 10^ul_upr,
-        det_lmr_nl = 10^det_lmr_nl,
+        det_lmr_lab = 10^det_lmr_lab,
         lmr = 10^lmr
       )
   }
@@ -177,13 +543,13 @@ make_valband <- function(ages, min_year = 1997, identity_scale = F){
     mutate(
       ul_lwr = ifelse(year < 1997, NA, ul_lwr),
       ul_upr = ifelse(year < 1997, NA, ul_upr),
-      det_lmr_nl = ifelse(year < 1997, NA, det_lmr_nl)
+      det_lmr_lab = ifelse(year < 1997, NA, det_lmr_lab)
     ) %>%
     filter(age %in% ages) %>% 
     mutate(age = factor(age)) %>% 
     ggplot(., aes(x = year, group = age)) + 
     geom_ribbon(aes(ymin = ul_lwr, ymax = ul_upr), alpha = 0.2) + 
-    geom_line(aes(y = det_lmr_nl)) + 
+    geom_line(aes(y = det_lmr_lab)) + 
     geom_point(aes(y = lmr, colour = age, shape = age)) + 
     facet_wrap(~sex) + 
     labs(x = "Year", y = ifelse(identity_scale, "Mortality risk at age", "Base 10 log mortality risk at age")) + 
@@ -223,7 +589,7 @@ draw_diffs <- function(dta, YEAR, XLIMS = c(0, 89), YLIMS = c(-12000, 12000), re
   dta  %>% 
     mutate(year = year + 1990)  %>% 
     filter(year == YEAR) %>% 
-    mutate(deaths_counterfactual = population * 10 ^ det_lmr_nl)  %>% 
+    mutate(deaths_counterfactual = population * 10 ^ det_lmr_lab)  %>% 
     group_by(sex)  %>% 
     arrange(age)  %>% 
     mutate(
@@ -289,26 +655,26 @@ ggsave("figures/excess_deaths_2010_2015.png", height = 30, width = 40, dpi = 300
 
 # Coefficents for standard model specification 
 
-model_outputs %>% 
-  select(sex, age, mdl) %>% 
-  mutate(coef_tidy = map(mdl, tidy)) %>% 
-  select(-mdl) %>% 
+  best_model_sims %>% 
+  select(sex, age, best_model) %>% 
+  mutate(coef_tidy = map(best_model, tidy)) %>% 
+  select(-best_model) %>% 
   unnest() %>% 
-  mutate(term = car::recode(
-    term, 
-    "
-    '(Intercept)' = 'Intercept';
-    'year' = 'Trend';
-    'newlabTRUE' = 'NL Intercept';
-    'recessionTRUE' = 'GFC Intercept'
-    "
-  )) %>% 
-  mutate(
-    term = ifelse(term == "year:newlabTRUE", "NL Trend", term),
-    term = ifelse(term == "year:recessionTRUE", "GFC Trend", term)
-  ) %>% 
-  mutate(term = factor(term, levels = c("Intercept", "Trend", "NL Intercept", "NL Trend", "GFC Intercept", "GFC Trend"))
-  ) %>% 
+  # mutate(term = car::recode(
+  #   term, 
+  #   "
+  #   '(Intercept)' = 'Intercept';
+  #   'year' = 'Trend';
+  #   'labTRUE' = 'NL Intercept';
+  #   'recessionTRUE' = 'GFC Intercept'
+  #   "
+  # )) %>% 
+  # mutate(
+  #   term = ifelse(term == "year:labTRUE", "NL Trend", term),
+  #   term = ifelse(term == "year:recessionTRUE", "GFC Trend", term)
+  # ) %>% 
+  # mutate(term = factor(term, levels = c("Intercept", "Trend", "NL Intercept", "NL Trend", "GFC Intercept", "GFC Trend"))
+  # ) %>% 
   mutate(upper = estimate + 1.96 * std.error, lower = estimate - 1.96 * std.error) %>% 
   ggplot(., aes(x = age)) + 
   facet_grid(term ~ sex, scales = "free_y") + 
@@ -348,13 +714,13 @@ model_outputs %>%
     "
     '(Intercept)' = 'Intercept';
     'year' = 'Trend';
-    'newlabTRUE' = 'NL Intercept';
+    'labTRUE' = 'NL Intercept';
     'recessionTRUE' = 'GFC Intercept';
     'I(year^2)' = 'Nonlinear trend'
     "
   )) %>%
   mutate(
-    term = ifelse(term == "year:newlabTRUE", "NL Trend", term),
+    term = ifelse(term == "year:labTRUE", "NL Trend", term),
     term = ifelse(term == "year:recessionTRUE", "GFC Trend", term)
   ) %>%
   mutate(term = factor(term, levels = c("Intercept", "Trend", "Nonlinear trend", "NL Intercept", "NL Trend", "GFC Intercept", "GFC Trend"))
