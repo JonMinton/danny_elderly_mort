@@ -339,7 +339,15 @@ dta  %>%
   gather(key = "mod_number", value = "model", mdl_01:mdl_24) %>% 
   mutate(mod_number = str_replace(mod_number, "mdl_", "")) -> all_models_1961
 
-
+# n_terms <- function(mdl){
+#   mdl %>% coefficients %>% length
+# }
+# # Number of model terms 
+# all_models_1961 %>% 
+#   filter(sex == "female", age == 0) %>% 
+#   mutate(num_terms = map_dbl(model, n_terms)) %>% 
+#   View
+# 
 # AIC, BIC and Rsquared by age 
 
 all_models_1961 %>% 
@@ -369,15 +377,32 @@ mod_summaries_both <- bind_rows(mod_summaries_1961, mod_summaries_1990)
 
 # Now to explore this 
 
+
 mod_summaries_both %>% 
-  group_by(mod_number, start_year) %>% 
-  summarise_each(funs(mean), aic:rsq_adj) %>% 
-  ggplot(., aes(x = mod_number, y = aic)) + 
-  geom_point() + facet_wrap(~ start_year, scales = "free_y")
-# AIC suggests model 11 is best, then model 8, if looking from 1961 onwards
-# If looking from 1990, model 8 then model 11.
-# model 8: lmr ~ year + year^2 + year^3
-# model 11: lmr ~ lab * (year + year^2 + year^3)
+  filter(start_year == 1961) %>% 
+  group_by(mod_number) %>% 
+  summarise_each(funs(mean), aic:rsq_adj) %>%
+  gather(key = "metric", value = "value", aic:rsq_adj) %>% 
+  ggplot(., aes(x = mod_number, y = value)) + 
+  geom_point() + facet_wrap(~ metric, nrow = 2, scales = "free_y") + 
+  theme_minimal() 
+ggsave("figures/model_fit_comparison.png", height = 15, width = 25, units = "cm", dpi = 300)
+
+
+# Same, but for ages 0 and 50+
+
+mod_summaries_both %>% 
+  filter(start_year == 1961) %>% 
+  filter(start_year == 1961) %>% 
+  filter(age %in% c(0, 50:89)) %>% 
+  group_by(mod_number) %>% 
+  summarise_each(funs(mean), aic:rsq_adj) %>%
+  gather(key = "metric", value = "value", aic:rsq_adj) %>% 
+  ggplot(., aes(x = mod_number, y = value)) + 
+  geom_point() + facet_wrap(~ metric, nrow = 2, scales = "free_y") + 
+  theme_minimal() 
+ggsave("figures/model_fit_comparison_50plus.png", height = 15, width = 25, units = "cm", dpi = 300)
+
 
 
 mod_summaries_both %>% 
