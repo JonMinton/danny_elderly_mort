@@ -156,6 +156,34 @@ run_model_24 <- function(dta){
   lm(lmr ~ lab * recession * year + I(year^2) + I(year^3) + I(year^4) , data = dta)
 }
 
+run_model_25 <- function(dta){ 
+  lm(lmr ~ lab * recession * (year + I(year^2) + I(year^3) + I(year^4)) , data = dta)
+}
+
+run_model_26 <- function(dta){ 
+  lm(lmr ~ (year + I(year^2) + I(year^3) + I(year^4) + I(year^5)) , data = dta)
+}
+
+run_model_27 <- function(dta){ 
+  lm(lmr ~ lab + (year + I(year^2) + I(year^3) + I(year^4) + I(year^5)) , data = dta)
+}
+
+run_model_28 <- function(dta){ 
+  lm(lmr ~ recession + (year + I(year^2) + I(year^3) + I(year^4) + I(year^5)) , data = dta)
+}
+
+run_model_29 <- function(dta){ 
+  lm(lmr ~ lab + recession + (year + I(year^2) + I(year^3) + I(year^4) + I(year^5)) , data = dta)
+}
+
+run_model_30 <- function(dta){ 
+  lm(lmr ~ lab * recession + (year + I(year^2) + I(year^3) + I(year^4) + I(year^5)) , data = dta)
+}
+
+run_model_31 <- function(dta){ 
+  lm(lmr ~ lab * recession * year + I(year^2) + I(year^3) + I(year^4) + I(year^5) , data = dta)
+}
+
 
 # Other functions  --------------------------------------------------------
 
@@ -248,56 +276,16 @@ compare_model_w_countermodel <- function(dths_model, dths_counter_model){
 
 # Automate model production  ----------------------------------------------
 
-# Additional sensitivity analysis should be start year, 
-# and whether to include additional years as recession years 
+# The aim is to fit the models on data from 1961 to 2010, and use this to project to 
+# 2010-2014, and then 2015 up to age 89 years
 
-# All models, from 1990 onwards 
+# This will mean a more consistent approach can be used if looking at models which only incorporate 
+# year, and also allows two scenarios to be looked at for models including LAB and REC as terms. 
+
+
 
 dta  %>% 
-  filter(age <= 89)  %>% 
-  filter(year >= 1990)  %>% 
-  filter(place == "ew") %>% 
-  mutate(lmr = log(deaths/population, 10)) %>% 
-  mutate(
-    lab = year %in% c(1964, 1974:1978, 1997:2010), 
-    recession = year %in% c(1961, 1973:1975, 1990:1991, 2008:2009)
-  )  %>% 
-  mutate(year = year - min(year)) %>% 
-  group_by(sex, age)  %>% 
-  nest()  %>%
-  mutate(
-    mdl_01 = map(data, run_model_01),
-    mdl_02 = map(data, run_model_02),
-    mdl_03 = map(data, run_model_03),
-    mdl_04 = map(data, run_model_04),
-    mdl_05 = map(data, run_model_05),
-    mdl_06 = map(data, run_model_06),
-    mdl_07 = map(data, run_model_07),
-    mdl_08 = map(data, run_model_08),
-    mdl_09 = map(data, run_model_09),
-    mdl_10 = map(data, run_model_10),
-    mdl_11 = map(data, run_model_11),
-    mdl_12 = map(data, run_model_12),
-    mdl_13 = map(data, run_model_13),
-    mdl_14 = map(data, run_model_14),
-    mdl_15 = map(data, run_model_15),
-    mdl_16 = map(data, run_model_16),
-    mdl_17 = map(data, run_model_17),
-    mdl_18 = map(data, run_model_18),
-    mdl_19 = map(data, run_model_19),
-    mdl_20 = map(data, run_model_20),
-    mdl_21 = map(data, run_model_21),
-    mdl_22 = map(data, run_model_22),
-    mdl_23 = map(data, run_model_23),
-    mdl_24 = map(data, run_model_24)
-    
-  ) %>% 
-  select(-data) %>% 
-  gather(key = "mod_number", value = "model", mdl_01:mdl_24) %>% 
-  mutate(mod_number = str_replace(mod_number, "mdl_", "")) -> all_models_1990
-
-# All models, all available years (from 1961)
-dta  %>% 
+  filter(year <= 2010) %>% 
   filter(age <= 89)  %>% 
   filter(place == "ew") %>% 
   mutate(lmr = log(deaths/population, 10)) %>% 
@@ -332,12 +320,22 @@ dta  %>%
     mdl_21 = map(data, run_model_21),
     mdl_22 = map(data, run_model_22),
     mdl_23 = map(data, run_model_23),
-    mdl_24 = map(data, run_model_24)
+    mdl_24 = map(data, run_model_24),
+    mdl_25 = map(data, run_model_25),
+    mdl_26 = map(data, run_model_26),
+    mdl_27 = map(data, run_model_27),
+    mdl_28 = map(data, run_model_28),
+    mdl_29 = map(data, run_model_29),
+    mdl_30 = map(data, run_model_30)
+    
     
   ) %>% 
   select(-data) %>% 
-  gather(key = "mod_number", value = "model", mdl_01:mdl_24) %>% 
-  mutate(mod_number = str_replace(mod_number, "mdl_", "")) -> all_models_1961
+  gather(key = "mod_number", value = "model", mdl_01:mdl_30) %>% 
+  mutate(mod_number = str_replace(mod_number, "mdl_", "")) -> all_models
+
+
+
 
 # n_terms <- function(mdl){
 #   mdl %>% coefficients %>% length
@@ -350,7 +348,7 @@ dta  %>%
 # 
 # AIC, BIC and Rsquared by age 
 
-all_models_1961 %>% 
+all_models %>% 
   mutate(
     aic = map_dbl(model, AIC),
     bic = map_dbl(model, BIC),
@@ -359,40 +357,28 @@ all_models_1961 %>%
     ) %>% 
   select(-model) %>% 
   mutate(start_year = 1961) %>% 
-  select(mod_number, start_year, sex, age, aic:rsq_adj) -> mod_summaries_1961
+  select(mod_number, start_year, sex, age, aic:rsq_adj) -> mod_summaries
 
-all_models_1990 %>% 
-  mutate(
-    aic = map_dbl(model, AIC),
-    bic = map_dbl(model, BIC),
-    rsq = map_dbl(model, function(x) {summary(x)$r.squared}),
-    rsq_adj = map_dbl(model, function(x) {summary(x)$adj.r.squared})
-  ) %>% 
-  select(-model) %>% 
-  mutate(start_year = 1990) %>% 
-  select(mod_number, start_year, sex, age, aic:rsq_adj) -> mod_summaries_1990
-
-mod_summaries_both <- bind_rows(mod_summaries_1961, mod_summaries_1990)
 
 
 # Now to explore this 
 
 
-mod_summaries_both %>% 
+mod_summaries %>% 
   filter(start_year == 1961) %>% 
   group_by(mod_number) %>% 
   summarise_each(funs(mean), aic:rsq_adj) %>%
   gather(key = "metric", value = "value", aic:rsq_adj) %>% 
   ggplot(., aes(x = mod_number, y = value)) + 
   geom_point() + facet_wrap(~ metric, nrow = 2, scales = "free_y") + 
-  theme_minimal() 
+  theme_minimal() +
+  labs(title = "Comparison of mean model fits", x = "Model Number", y = "Fit")
 ggsave("figures/model_fit_comparison.png", height = 15, width = 25, units = "cm", dpi = 300)
 
 
 # Same, but for ages 0 and 50+
 
-mod_summaries_both %>% 
-  filter(start_year == 1961) %>% 
+mod_summaries %>% 
   filter(start_year == 1961) %>% 
   filter(age %in% c(0, 50:89)) %>% 
   group_by(mod_number) %>% 
@@ -405,38 +391,6 @@ ggsave("figures/model_fit_comparison_50plus.png", height = 15, width = 25, units
 
 
 
-mod_summaries_both %>% 
-  group_by(mod_number, start_year) %>% 
-  summarise_each(funs(mean), aic:rsq_adj) %>% 
-  ggplot(., aes(x = mod_number, y = bic)) + 
-  geom_point() + facet_wrap(~ start_year, scales = "free_y")
-
-# BIC suggests model 8 is best, then model 11, if looking from 1961 onwards
-# If looking from 1990, model 8 is best, then model 7.
-# model 7: lmr ~ year + year^2
-# model 8: lmr ~ year + year^2 + year^3
-# model 11: lmr ~ lab * (year + year^2 + year^3)
-
-mod_summaries_both %>% 
-  group_by(mod_number, start_year) %>% 
-  summarise_each(funs(mean), aic:rsq_adj) %>% 
-  ggplot(., aes(x = mod_number, y = rsq)) + 
-  geom_point() + facet_wrap(~ start_year, scales = "free_y")
-
-# rsq suggests model 11, then model 2 (lab:recession:year interaction + year^2)  
-# if looking from 1990 onwards.
-# If looking from 1961 onwards, model 11 then model 8
-
-# model 2: lmr ~ year * (lab + recession) + I(year^2)
-# model 7: lmr ~ year + year^2
-# model 8: lmr ~ year + year^2 + year^3
-# model 11: lmr ~ lab * (year + year^2 + year^3)
-
-mod_summaries_both %>% 
-  group_by(mod_number, start_year) %>% 
-  summarise_each(funs(mean), aic:rsq_adj) %>% 
-  ggplot(., aes(x = mod_number, y = rsq_adj)) + 
-  geom_point() + facet_wrap(~ start_year, scales = "free_y")
 
 # Adjusted R-squared indicates model 11 for both start dates
 # then model 8 for 1961 onwards, and model 2 for 1990 onwards
@@ -444,48 +398,38 @@ mod_summaries_both %>%
 
 # I'm now looking at model 19
 
-mod_summaries_both %>% 
+mod_summaries %>% 
   filter(mod_number == "19") %>% 
-  filter(start_year == 1961) %>% 
+  filter(age <= 100) %>% 
   ggplot(., aes(x = age, colour = sex, y = rsq_adj)) + 
-  geom_point() 
+  geom_point() +
+  scale_x_continuous("Age", breaks = c(0, seq(10, 100, 10))) + 
+  scale_y_continuous("Adjusted R-squared", limits = c(0, 1), breaks = c(0, seq(0.2, 1.0, by = 0.2))) +
+  theme_minimal() +
+  labs(title = "Adjusted R-Squared by age/sex for Model 19")
+ggsave("figures/adj_rsq_for_mod_19.png", dpi = 300, units = "cm", height = 15, width = 20)
 
-mod_summaries_both %>% 
-  filter(mod_number == "19") %>% 
-  filter(start_year == 1961) %>% 
-  ggplot(., aes(x = age, colour = sex, y = aic)) + 
-  geom_point() 
+mod_summaries %>% 
+  filter(mod_number == "16") %>% 
+  filter(age <= 100) %>% 
+  ggplot(., aes(x = age, colour = sex, y = rsq_adj)) + 
+  geom_point() +
+  scale_x_continuous("Age", breaks = c(0, seq(10, 100, 10))) + 
+  scale_y_continuous("Adjusted R-squared", limits = c(0, 1), breaks = c(0, seq(0.2, 1.0, by = 0.2))) +
+  theme_minimal() +
+  labs(title = "Adjusted R-Squared by age/sex for Model 16")
+ggsave("figures/adj_rsq_for_mod_16.png", dpi = 300, units = "cm", height = 15, width = 20)
 
-mod_summaries_both %>% 
-  filter(mod_number == "19") %>% 
-  filter(start_year == 1961) %>% 
-  ggplot(., aes(x = age, colour = sex, y = bic)) + 
-  geom_point() 
-
-# The above suggest the model fit should be focused on ages 0 and 50+ 
-
-mod_summaries_both %>% 
-  filter(age %in% c(0, 50:89)) %>% 
-  group_by(mod_number, start_year) %>% 
-  summarise_each(funs(mean), aic:rsq_adj) %>% 
-  ggplot(., aes(x = mod_number, y = aic)) + 
-  geom_point() + facet_wrap(~ start_year, scales = "free_y")
-
-mod_summaries_both %>% 
-  filter(age %in% c(0, 50:89)) %>% 
-  group_by(mod_number, start_year) %>% 
-  summarise_each(funs(mean), aic:rsq_adj) %>% 
-  ggplot(., aes(x = mod_number, y = rsq_adj)) + 
-  geom_point() + facet_wrap(~ start_year, scales = "free_y")
-
-mod_summaries_both %>% 
-  filter(age %in% c(0, 50:89)) %>% 
-  group_by(mod_number, start_year) %>% 
-  summarise_each(funs(mean), aic:rsq_adj) %>% 
-  ggplot(., aes(x = mod_number, y = bic)) + 
-  geom_point() + facet_wrap(~ start_year, scales = "free_y")
-
-
+mod_summaries %>% 
+  filter(mod_number == "25") %>% 
+  filter(age <= 100) %>% 
+  ggplot(., aes(x = age, colour = sex, y = rsq_adj)) + 
+  geom_point() +
+  scale_x_continuous("Age", breaks = c(0, seq(10, 100, 10))) + 
+  scale_y_continuous("Adjusted R-squared", limits = c(0, 1), breaks = c(0, seq(0.2, 1.0, by = 0.2))) +
+  theme_minimal() +
+  labs(title = "Adjusted R-Squared by age/sex for Model 25")
+ggsave("figures/adj_rsq_for_mod_16.png", dpi = 300, units = "cm", height = 15, width = 20)
 
 
 # Conclusion
@@ -565,11 +509,11 @@ make_valband <- function(ages, dta_start_year = 1961, identity_scale = F){
   
   mod_bands %>% 
     mutate(year = year + dta_start_year) %>% 
-    mutate(
-      ul_lwr = ifelse(year < 1997, NA, ul_lwr),
-      ul_upr = ifelse(year < 1997, NA, ul_upr),
-      det_lmr_lab = ifelse(year < 1997, NA, det_lmr_lab)
-    ) %>%
+    # mutate(
+    #   ul_lwr = ifelse(year < 1997, NA, ul_lwr),
+    #   ul_upr = ifelse(year < 1997, NA, ul_upr),
+    #   det_lmr_lab = ifelse(year < 1997, NA, det_lmr_lab)
+    # ) %>%
     filter(age %in% ages) %>% 
     mutate(age = factor(age)) %>% 
     ggplot(., aes(x = year, group = age)) + 
@@ -686,8 +630,8 @@ ggsave("figures/banded_plot_older_ages_heath.png", height = 25, width = 25, unit
 # Figure S1 - banded plots at younger ages  -------------------------------
 
 plot_grid(
-  make_valband(c(0, 15, 25, 35, 45)),
-  make_valband(c(0, 15, 25, 35, 45), identity_scale  = T),
+  make_valband(c(0, 15, 25, 35, 45, 55)),
+  make_valband(c(0, 15, 25, 35, 45, 55), identity_scale  = T),
   nrow = 2,
   labels = c("A", "B")
 )
