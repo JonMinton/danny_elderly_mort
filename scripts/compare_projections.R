@@ -67,4 +67,24 @@ proj_joined %>%
 ggsave("figures/ons_projections_difference.png", width = 30, height = 15, units = "cm", dpi = 300)
 
 
+proj_joined %>% 
+  spread(proj_year, deaths) %>% 
+  mutate(difference = `2016` - `2014`) %>% 
+  mutate(difference = ifelse(difference < -5000, -5000, difference)) %>% 
+  ggplot(aes(x = year, y = age, fill = difference)) + 
+  geom_tile() + 
+  coord_equal() +
+  scale_fill_gradientn(
+    "Difference", 
+    colours = scales::brewer_pal(palette = "Paired")(12)
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 100, by = 10)
+  ) + 
+  facet_wrap(~sex)
+
+ggsave("figures/ons_projections_difference_clipped.png", width = 30, height = 15, units = "cm", dpi = 300)
+
+
+
 
