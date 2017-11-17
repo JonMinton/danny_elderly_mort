@@ -87,4 +87,42 @@ ggsave("figures/ons_projections_difference_clipped.png", width = 30, height = 15
 
 
 
+proj_joined %>% 
+  spread(proj_year, deaths) %>% 
+  mutate(difference = (`2016` - `2014`) / `2014`) %>% 
+  ggplot(aes(x = year, y = age, fill = difference)) + 
+  geom_tile() + 
+  coord_equal() +
+  scale_fill_gradientn(
+    "Prop Diff", 
+    colours = scales::brewer_pal(palette = "Paired")(12)
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 100, by = 10)
+  ) + 
+  facet_wrap(~sex)
+
+ggsave("figures/ons_projections_ratio.png", width = 30, height = 15, units = "cm", dpi = 300)
+
+
+proj_joined %>% 
+  spread(proj_year, deaths) %>% 
+  mutate(proportion = (`2016` - `2014`) / `2014`) %>% 
+  mutate(proportion = ifelse(proportion < -0.5, -0.5, proportion)) %>% 
+  ggplot(aes(x = year, y = age, fill = proportion)) + 
+  geom_tile() + 
+  coord_equal() +
+  scale_fill_gradientn(
+    "Proportion", 
+    colours = scales::brewer_pal(palette = "RdBu")(11),
+    limits = c(-0.5, 0.5)
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 100, by = 10)
+  ) + 
+  facet_wrap(~sex)
+
+ggsave("figures/ons_projections_ratio_rdblu_clipped.png", width = 30, height = 15, units = "cm", dpi = 300)
+
+
 
