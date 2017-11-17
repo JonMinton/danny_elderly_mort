@@ -114,7 +114,7 @@ proj_joined %>%
   coord_equal() +
   scale_fill_gradientn(
     "Proportion", 
-    colours = scales::brewer_pal(palette = "RdBu")(11),
+    colours = scales::brewer_pal(palette = "RdBu", direction = -1)(11),
     limits = c(-0.5, 0.5)
   ) +
   scale_y_continuous(
